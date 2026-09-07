@@ -1,5 +1,8 @@
 # Repository Guidelines
 
+## Branch and Workspace Policy
+Perform all development and releases directly on `main`. Do not create additional branches or Git worktrees.
+
 ## Project Structure & Module Organization
 This repository is a collection of Bash automation for provisioning Ubuntu-like hosts. The main entry point is `scripts/fluxenv`. Shared installation logic lives in `lib/` and `lib/steps/`. Runtime configuration and manifests live in `config/`. Bundled third-party assets and offline installers live in `offline_resources/`; treat that directory as curated vendor content and avoid casual edits there.
 
