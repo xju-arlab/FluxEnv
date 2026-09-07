@@ -6,7 +6,7 @@
 
 FluxEnv 是一个基于 Bash 的环境初始化工具，面向 WSL、Ubuntu / Debian 宿主机、AutoDL 容器用户环境，以及 root-only 容器环境。
 
-## NetUI 快速安装
+## NetUI 代理配置
 
 使用 GitCode Release 中经过校验的 NetUI v0.2.3 固定版本安装器：
 
@@ -14,7 +14,54 @@ FluxEnv 是一个基于 Bash 的环境初始化工具，面向 WSL、Ubuntu / De
 curl -fsSL 'https://gitcode.com/winbeau/FluxEnv/releases/download/v0.2.3/install-v0.2.3.sh' | sh
 ```
 
-安装完成后可运行 `netui --version` 确认版本，并通过 `netui` 打开全屏配置界面。更多说明见 [`packages/netui/README.md`](packages/netui/README.md)。
+首次安装后重新登录 SSH。`netup` 自动设置当前终端的代理环境，Git 直接继承，无需手动 `export` 或另配 `git config`。
+
+### IPv6 或节点 DNS 超时
+
+若出现 `gnutls_handshake() failed`，先在 `netui` 中换节点并重启，再检查 HTTPS 请求和代理日志：
+
+```bash
+curl -fsS --connect-timeout 10 --max-time 20 -o /dev/null \
+    -w 'HTTP=%{http_code} total=%{time_total}\n' https://github.com/
+tail -n 30 "${XDG_STATE_HOME:-$HOME/.local/state}/netui/logs/sing-box.log"
+```
+
+如果日志包含节点域名的 `lookup ... i/o timeout`、`exchange6` 或 AAAA 查询超时，可给当前默认配置中的 Hysteria2 / VLESS 公网域名节点指定 DNS，并只查询 IPv4。以下命令使用 `223.5.5.5`，要求它能从当前容器或主机直接访问；请先在 `netui` 中选中需要修复的默认节点。命令会合并 DNS 配置、校验、备份原文件，成功后重启代理：
+
+```bash
+bash <<'NETUI_DNS_FIX' && netdown && netup
+    set -eu
+    umask 077
+    netui_config=$(realpath -e "${XDG_CONFIG_HOME:-$HOME/.config}/netui/default.json")
+    netui_stage=$(mktemp "${netui_config%/*}/.netui-dns.XXXXXX")
+    trap 'rm -f -- "$netui_stage"' EXIT
+    jq '
+        def domain_proxy:
+            (.type == "hysteria2" or .type == "vless")
+            and (.server | type == "string")
+            and (.server | test(":|^[0-9.]+$") | not);
+        if any(.outbounds[]?; domain_proxy) then
+            .dns.servers = ((.dns.servers // [])
+                | map(select(.tag != "netui-bootstrap-ipv4"))
+                + [{type: "udp", tag: "netui-bootstrap-ipv4", server: "223.5.5.5"}])
+            | .route.default_domain_resolver //=
+                {server: "netui-bootstrap-ipv4", strategy: "ipv4_only"}
+            | .outbounds |= map(if domain_proxy then
+                .domain_resolver = ((if (.domain_resolver | type) == "object"
+                    then .domain_resolver else {} end)
+                    + {server: "netui-bootstrap-ipv4", strategy: "ipv4_only"})
+                else . end)
+        else error("当前配置没有使用域名的 Hysteria2 / VLESS 节点") end
+    ' "$netui_config" > "$netui_stage"
+    "${XDG_DATA_HOME:-$HOME/.local/share}/netui/current/bin/sing-box" check -c "$netui_stage"
+    netui_backup=$(mktemp "${netui_config}.bak.XXXXXX")
+    cp -- "$netui_config" "$netui_backup"
+    mv -Tf -- "$netui_stage" "$netui_config"
+    printf '原配置已备份到：%s\n' "$netui_backup"
+NETUI_DNS_FIX
+```
+
+`ipv4_only` 避免代理节点的 AAAA 查询及 IPv6 连接等待。`curl -4` 只控制 curl 自身的连接，不能替代代理进程中的节点 DNS 设置。DNS 字段说明见 [sing-box 官方文档](https://sing-box.sagernet.org/configuration/shared/dial/#domain_resolver)，NetUI 用法见 [`packages/netui/README.md`](packages/netui/README.md)。
 
 ## 入口脚本
 
