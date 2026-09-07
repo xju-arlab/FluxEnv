@@ -338,6 +338,7 @@ _runtime_start_unlocked() {
     runtime_require_tmux || return 3
     if runtime_session_exists; then
         if [[ -f "$NETUI_RUNTIME_STATE" && ! -L "$NETUI_RUNTIME_STATE" ]] && runtime_session_is_healthy; then
+            env_profiles_enable_on_start || return 1
             netui_print_info "already running: ${runtime_config_basename}"
             return 0
         fi
@@ -423,7 +424,10 @@ _runtime_start_unlocked() {
     fi
 
     rm -f -- "$launcher"
-    runtime_notify_environment
+    env_profiles_enable_on_start || {
+        netui_print_error 'instance started, but automatic proxy environment setup failed'
+        return 1
+    }
     netui_print_info "started ${runtime_config_basename} in tmux session '$NETUI_TMUX_SESSION_NAME'"
     return 0
 }
@@ -477,7 +481,7 @@ _runtime_stop_unlocked() {
         if [[ -d "/proc/$process_pid" ]]; then
             if runtime_process_matches_state; then
                 kill -KILL "$process_pid" 2>/dev/null || true
-            elif ! netui_process_is_zombie "$process_pid"; then
+            elif ! netui_process_is_zombie "$process_pid" && [[ -d "/proc/$process_pid" ]]; then
                 netui_print_error 'managed process identity changed while stopping; refusing to kill it'
                 return 6
             fi

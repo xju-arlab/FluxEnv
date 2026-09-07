@@ -79,6 +79,10 @@ for command_name in netup netdown netui; do
 done
 [[ "$(stat -c '%a' -- "$home/.config/netui")" == 700 ]]
 [[ "$(stat -c '%a' -- "$home/.local/state/netui")" == 700 ]]
+[[ "$(cat "$home/.config/netui/env-mode")" == cn-direct ]]
+for rc_file in "$home/.bashrc" "$home/.zshenv" "$home/.zshrc"; do
+    [[ "$(head -n 1 "$rc_file")" == '# >>> netui shell integration >>>' ]]
+done
 
 config="$home/.config/netui/configs/example.json"
 mkdir -p "${config%/*}"
@@ -99,6 +103,7 @@ HOME="$home" XDG_CONFIG_HOME="$home/.config" XDG_DATA_HOME="$home/.local/share" 
 HOME="$home" XDG_CONFIG_HOME="$home/.config" XDG_DATA_HOME="$home/.local/share" \
     XDG_STATE_HOME="$home/.local/state" bash "$home/.local/share/netui/current/install.sh" --from-release
 [[ -L "$current" ]]
+[[ "$(grep -Fc '# >>> netui shell integration >>>' "$home/.bashrc")" == 1 ]]
 
 HOME="$home" XDG_CONFIG_HOME="$home/.config" XDG_DATA_HOME="$home/.local/share" \
     XDG_STATE_HOME="$home/.local/state" bash "$home/.local/share/netui/current/install.sh" --uninstall --yes

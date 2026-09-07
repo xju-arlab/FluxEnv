@@ -67,7 +67,7 @@ netui_process_starttime() {
     local -a stat_fields=()
 
     [[ "$pid" =~ ^[0-9]+$ && -r "/proc/$pid/stat" ]] || return 1
-    stat_line=$(<"/proc/$pid/stat") || return 1
+    IFS= read -r stat_line 2>/dev/null < "/proc/$pid/stat" || return 1
     stat_line=${stat_line##*) }
     read -r -a stat_fields <<< "$stat_line"
     [[ "${#stat_fields[@]}" -ge 20 ]] || return 1
@@ -81,7 +81,7 @@ netui_process_is_zombie() {
     local -a stat_fields=()
 
     [[ "$pid" =~ ^[0-9]+$ && -r "/proc/$pid/stat" ]] || return 1
-    stat_line=$(<"/proc/$pid/stat") || return 1
+    IFS= read -r stat_line 2>/dev/null < "/proc/$pid/stat" || return 1
     stat_line=${stat_line##*) }
     read -r -a stat_fields <<< "$stat_line"
     [[ "${#stat_fields[@]}" -ge 1 && "${stat_fields[0]}" == Z ]]
@@ -108,7 +108,7 @@ netui_process_has_core() {
 
     # Test fixtures may use an executable shell script instead of an ELF core.
     # Accept only the kernel's strict shebang layouts, never an arbitrary argv.
-    command_line=$(tr '\0' '\n' < "/proc/$pid/cmdline" 2>/dev/null) || return 1
+    command_line=$(tr '\0' '\n' 2>/dev/null < "/proc/$pid/cmdline") || return 1
     first_arg=${command_line%%$'\n'*}
     if [[ "$command_line" == *$'\n'* ]]; then
         remaining_args=${command_line#*$'\n'}

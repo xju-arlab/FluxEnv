@@ -9,6 +9,8 @@ tui_terminal_key=''
 tui_terminal_hidden_value=''
 tui_terminal_char_cells=0
 tui_terminal_text_locale=''
+tui_terminal_text_cells=0
+tui_terminal_screen_generation=0
 
 tui_terminal_init_text_locale() {
     [[ -n "$tui_terminal_text_locale" ]] && return 0
@@ -93,11 +95,17 @@ tui_terminal_char_width() {
     fi
 }
 
-tui_terminal_cell_width() {
+tui_terminal_measure_text() {
     local value=${1:-}
     local char=''
     local index=0
     local width=0
+    local ascii_pattern='^[ -~]*$'
+
+    if [[ "$value" =~ $ascii_pattern ]]; then
+        tui_terminal_text_cells=${#value}
+        return 0
+    fi
 
     tui_terminal_init_text_locale
     local LC_ALL=$tui_terminal_text_locale
@@ -106,7 +114,12 @@ tui_terminal_cell_width() {
         tui_terminal_char_width "$char"
         width=$((width + tui_terminal_char_cells))
     done
-    printf '%s' "$width"
+    tui_terminal_text_cells=$width
+}
+
+tui_terminal_cell_width() {
+    tui_terminal_measure_text "${1:-}"
+    printf '%s' "$tui_terminal_text_cells"
 }
 
 tui_terminal_get_size() {
@@ -148,6 +161,7 @@ tui_terminal_enter() {
     [[ -t 0 && -t 1 ]] || return 1
     tui_terminal_saved_stty=$(stty -g 2>/dev/null) || return 1
     tui_terminal_active=1
+    tui_terminal_screen_generation=$((tui_terminal_screen_generation + 1))
     stty -icanon -echo min 0 time 0 2>/dev/null || {
         tui_terminal_active=0
         tui_terminal_saved_stty=''
@@ -170,8 +184,9 @@ tui_terminal_read_key() {
     local sequence=''
     local byte=''
 
-    if [[ "$esc_timeout" =~ ^[0-9]+$ ]]; then
-        esc_seconds=$(awk -v ms="$esc_timeout" 'BEGIN {printf "%.3f", ms / 1000}')
+    if [[ "$esc_timeout" =~ ^[0-9]{1,4}$ ]]; then
+        esc_timeout=$((10#$esc_timeout))
+        printf -v esc_seconds '%d.%03d' "$((esc_timeout / 1000))" "$((esc_timeout % 1000))"
     fi
     tui_terminal_key=''
     IFS= read -r -N 1 -t "$timeout" first || return 1
@@ -220,7 +235,6 @@ tui_terminal_read_key() {
         i|I) tui_terminal_key=IMPORT ;;
         l|L) tui_terminal_key=LOG_SOURCE ;;
         r|R) tui_terminal_key=REFRESH ;;
-        o|O) tui_terminal_key=MODE_OFF ;;
         g|G) tui_terminal_key=MODE_GLOBAL ;;
         w|W) tui_terminal_key=MODE_WHITELIST ;;
         q|Q) tui_terminal_key=QUIT ;;

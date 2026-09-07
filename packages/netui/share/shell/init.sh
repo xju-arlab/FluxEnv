@@ -10,22 +10,35 @@ __netui_mode_file=$__netui_config_home/env-mode
 __netui_generation_file=$__netui_runtime_dir/env-generation
 __netui_endpoint_file=$__netui_runtime_dir/proxy-endpoint
 __netui_instance_file=$__netui_runtime_dir/instance.state
-__netui_last_generation=${__netui_last_generation-}
+__netui_last_generation=''
+__netui_last_mode=''
+
+case ":$PATH:" in
+    *":${NETUI_BIN_DIR:-${XDG_BIN_HOME:-$HOME/.local/bin}}:"*) ;;
+    *) export PATH="${NETUI_BIN_DIR:-${XDG_BIN_HOME:-$HOME/.local/bin}}:$PATH" ;;
+esac
 
 __netui_read_mode() {
     local mode=''
 
+    if [[ ! -e "$__netui_mode_file" && ! -L "$__netui_mode_file" ]]; then
+        __netui_mode=cn-direct
+        return 0
+    fi
     if [[ ! -f "$__netui_mode_file" || -L "$__netui_mode_file" ]]; then
-        printf 'off'
+        __netui_mode=off
         return 0
     fi
     IFS= read -r mode < "$__netui_mode_file" || mode=''
     case "$mode" in
-        global|cn-direct|off)
-            printf '%s' "$mode"
+        global|cn-direct)
+            __netui_mode=$mode
+            ;;
+        off)
+            __netui_mode=cn-direct
             ;;
         *)
-            printf 'off'
+            __netui_mode=off
             ;;
     esac
 }
@@ -37,7 +50,7 @@ __netui_read_generation() {
         IFS= read -r generation < "$__netui_generation_file" || generation=0
     fi
     [[ "$generation" =~ ^[0-9]+$ ]] || generation=0
-    printf '%s' "$generation"
+    __netui_generation=$generation
 }
 
 __netui_clear_owned_environment() {
@@ -96,9 +109,8 @@ __netui_runtime_is_healthy() {
     local pane_pid=''
     local process_starttime=''
     local core_path=''
-    local option_value=''
-    local current_pane=''
-    local current_pid=''
+    local session_metadata=''
+    local field=0
     local stat_line=''
     local stat_tail=''
     local current_starttime=''
@@ -129,25 +141,21 @@ __netui_runtime_is_healthy() {
     [[ "$pane_id" =~ ^%[0-9]+$ && "$pane_pid" =~ ^[0-9]+$ ]] || return 1
     [[ "$process_starttime" =~ ^[0-9]+$ && "$core_path" == /* ]] || return 1
     command -v tmux >/dev/null 2>&1 || return 1
-    __netui_tmux has-session -t "$session_name" >/dev/null 2>&1 || return 1
-    option_value=$(__netui_tmux show-option -qv -t "$session_name" @netui_token 2>/dev/null) || return 1
-    [[ "$option_value" == "$token" ]] || return 1
-    option_value=$(__netui_tmux show-option -qv -t "$session_name" @netui_core 2>/dev/null) || return 1
-    [[ "$option_value" == "$core_path" ]] || return 1
-    option_value=$(__netui_tmux show-option -qv -t "$session_name" @netui_pane 2>/dev/null) || return 1
-    [[ "$option_value" == "$pane_id" ]] || return 1
-    current_pane=$(__netui_tmux display-message -p -t "$session_name" '#{pane_id}' 2>/dev/null) || return 1
-    current_pid=$(__netui_tmux display-message -p -t "$session_name" '#{pane_pid}' 2>/dev/null) || return 1
-    [[ "$current_pane" == "$pane_id" && "$current_pid" == "$pane_pid" ]] || return 1
+    session_metadata=$(__netui_tmux display-message -p -t "$pane_id" \
+        '#{session_name}|#{@netui_token}|#{@netui_core}|#{@netui_pane}|#{pane_id}|#{pane_pid}' 2>/dev/null) || return 1
+    [[ "$session_metadata" == "$session_name|$token|$core_path|$pane_id|$pane_id|$pane_pid" ]] || return 1
     [[ -r "/proc/$pane_pid/stat" && -r "/proc/$pane_pid/cmdline" ]] || return 1
-    stat_line=$(<"/proc/$pane_pid/stat") || return 1
+    IFS= read -r stat_line 2>/dev/null < "/proc/$pane_pid/stat" || return 1
     stat_tail=${stat_line##*) }
-    current_starttime=$(printf '%s\n' "$stat_tail" | awk '{print $20}') || return 1
+    for ((field = 0; field < 19; field++)); do
+        stat_tail=${stat_tail#* }
+    done
+    current_starttime=${stat_tail%% *}
     [[ "$current_starttime" == "$process_starttime" ]] || return 1
     process_exe=$(readlink -e -- "/proc/$pane_pid/exe" 2>/dev/null) || process_exe=''
     [[ "$process_exe" == "$core_path" ]] && return 0
     [[ -f "$core_path" && -x "$core_path" ]] || return 1
-    command_line=$(tr '\0' '\n' < "/proc/$pane_pid/cmdline" 2>/dev/null) || return 1
+    command_line=$(tr '\0' '\n' 2>/dev/null < "/proc/$pane_pid/cmdline") || return 1
     first_arg=${command_line%%$'\n'*}
     remaining_args=${command_line#*$'\n'}
     second_arg=${remaining_args%%$'\n'*}
@@ -173,17 +181,20 @@ __netui_apply_env() {
     local https_value=''
     local all_value=''
 
-    generation=$(__netui_read_generation)
-    mode=$(__netui_read_mode)
+    __netui_read_generation
+    __netui_read_mode
+    generation=$__netui_generation
+    mode=$__netui_mode
     if [[ "$mode" != off ]] && ! __netui_runtime_is_healthy; then
-        __netui_last_generation=$generation
+        __netui_last_generation=''
         __netui_clear_owned_environment
         return 0
     fi
-    if [[ "$generation" == "$__netui_last_generation" ]]; then
+    if [[ "$generation" == "$__netui_last_generation" && "$mode" == "$__netui_last_mode" ]]; then
         return 0
     fi
     __netui_last_generation=$generation
+    __netui_last_mode=$mode
 
     if [[ "$mode" == off ]] || ! __netui_read_endpoint; then
         __netui_clear_owned_environment
@@ -227,6 +238,42 @@ __netui_apply_env() {
     [[ -n "$all_value" ]] && export all_proxy=$all_value ALL_PROXY=$all_value
     export no_proxy=$no_proxy_value NO_PROXY=$no_proxy_value
     export NETUI_ENV_OWNED=1
+    return 0
+}
+
+# Shell functions apply changes before the next command, including && chains.
+# The executable commands remain usable in scripts without sourcing this file.
+netup() {
+    local netui_status=0
+    command netup "$@" || netui_status=$?
+    __netui_last_generation=''
+    __netui_apply_env
+    return "$netui_status"
+}
+
+netdown() {
+    local netui_status=0
+    command netdown "$@" || netui_status=$?
+    __netui_last_generation=''
+    __netui_apply_env
+    return "$netui_status"
+}
+
+netui() {
+    local netui_status=0
+    command netui "$@" || netui_status=$?
+    __netui_last_generation=''
+    __netui_apply_env
+    return "$netui_status"
+}
+
+sudo() {
+    __netui_apply_env
+    if [[ "${NETUI_ENV_OWNED-}" == 1 ]]; then
+        command sudo --preserve-env=http_proxy,HTTP_PROXY,https_proxy,HTTPS_PROXY,all_proxy,ALL_PROXY,no_proxy,NO_PROXY "$@"
+    else
+        command sudo "$@"
+    fi
 }
 
 if [[ -n "${BASH_VERSION-}" ]]; then

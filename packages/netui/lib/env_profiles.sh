@@ -2,7 +2,7 @@
 
 env_profiles_validate_mode() {
     case "$1" in
-        global|cn-direct|off)
+        global|cn-direct)
             return 0
             ;;
         *)
@@ -15,11 +15,13 @@ env_profiles_read_mode() {
     local mode=''
 
     if [[ ! -e "$NETUI_ENV_MODE_FILE" && ! -L "$NETUI_ENV_MODE_FILE" ]]; then
-        env_mode=off
+        env_mode=cn-direct
         return 0
     fi
     [[ -f "$NETUI_ENV_MODE_FILE" && ! -L "$NETUI_ENV_MODE_FILE" ]] || return 1
     IFS= read -r mode < "$NETUI_ENV_MODE_FILE" || mode=''
+    # Versions through 0.2.2 installed an off preference by default.
+    [[ "$mode" != off ]] || mode=cn-direct
     env_profiles_validate_mode "$mode" || return 1
     env_mode=$mode
     return 0
@@ -126,7 +128,6 @@ env_profiles_compute_environment() {
     env_effective=0
 
     env_profiles_read_mode || return 1
-    [[ "$env_mode" != off ]] || return 1
     env_profiles_runtime_is_healthy || return 1
     env_profiles_read_endpoint || return 1
 
@@ -232,7 +233,7 @@ _env_profiles_set_mode_unlocked() {
     local requested_mode=$1
 
     env_profiles_validate_mode "$requested_mode" || {
-        netui_print_error 'environment mode must be global, cn-direct, or off'
+        netui_print_error 'environment mode must be global or cn-direct'
         return 2
     }
     env_profiles_write_value "$NETUI_ENV_MODE_FILE" "$requested_mode" || {
@@ -260,6 +261,15 @@ env_profiles_runtime_changed() {
     netui_init_dirs || return 1
     env_profiles_increment_generation || return 1
     env_profiles_sync_tmux
+}
+
+env_profiles_enable_on_start() {
+    env_profiles_read_mode || {
+        netui_print_error 'cannot read environment mode'
+        return 1
+    }
+    env_profiles_write_value "$NETUI_ENV_MODE_FILE" "$env_mode" || return 1
+    env_profiles_runtime_changed
 }
 
 env_profiles_status() {

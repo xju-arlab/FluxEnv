@@ -353,21 +353,18 @@ tui_action_environment() {
     if tui_use_gum && gum_path=$(tui_gum_path 2>/dev/null); then
         choice=$("$gum_path" choose \
             '1  global proxy (loopback-only no_proxy)' \
-            '2  cn-direct (controlled mainland suffix allowlist)' \
-            '3  off (clear NetUI-owned variables)') || return 1
+            '2  cn-direct (controlled mainland suffix allowlist)') || return 1
         selection=${choice%% *}
     else
         printf '%s\n' '1) global proxy (loopback-only no_proxy)'
         printf '%s\n' '2) cn-direct (controlled mainland suffix allowlist)'
-        printf '%s\n' '3) off (clear NetUI-owned variables)'
-        printf 'Environment mode [3]: '
+        printf 'Environment mode [2]: '
         IFS= read -r selection || return 1
-        [[ -n "$selection" ]] || selection=3
+        [[ -n "$selection" ]] || selection=2
     fi
     case "$selection" in
         1) mode=global ;;
         2) mode=cn-direct ;;
-        3) mode=off ;;
         *) return 2 ;;
     esac
     env_profiles_set_mode "$mode"
@@ -607,6 +604,7 @@ tui_run() {
     fi
 
     netui_init_dirs || return 1
+    netui_require_command jq || return 3
     if [[ -n "${NETUI_TUI_ACTIONS:-}" ]]; then
         tui_execute_test_actions
         return $?

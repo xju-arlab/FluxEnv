@@ -165,7 +165,7 @@ tui_idle_redraw_stable() (
         tui_v2_running=0
     }
 
-    tui_v2_run
+    tui_v2_run || return 1
     ((render_count == 1))
 )
 
@@ -399,7 +399,7 @@ assert_status 0 'enable global profile for socks-only fixture' env_profiles_set_
 assert_true 'socks-only hook does not invent HTTP proxies' bash -c '[[ "$1" == "||||socks5h://127.0.0.1:10811|socks5h://127.0.0.1:10811|localhost,127.0.0.1,::1|1" ]]' -- "$(run_clean_bash_hook)"
 assert_status 0 'stop socks-only fixture' "$test_bin/netdown"
 assert_status 0 'restore alpha after socks test' config_store_set_default "$alpha_config"
-env_profiles_set_mode off >/dev/null
+env_profiles_set_mode cn-direct >/dev/null
 
 assert_status 0 'start instance for running rename test' "$test_bin/netup"
 assert_status 0 'rename running configuration without stopping it' config_store_rename "$alpha_config" alpha-running.json
@@ -441,39 +441,107 @@ assert_true 'cn-direct no_proxy has no whitespace' bash -c '[[ "$1" != *[[:space
 assert_true 'cn-direct includes required suffixes' bash -c '[[ "$1" == *".cn"* && "$1" == *".huaweicloud.com"* && "$1" == *".aliyun.com"* && "$1" == *".cloud.tencent.com"* && "$1" == *".npmmirror.com"* ]]' -- "$cn_no_proxy"
 assert_true 'bash hook applies cn-direct profile' bash -c '[[ "$1" == *".cn"* && "$1" == *"|1" ]]' -- "$(run_clean_bash_hook)"
 
-assert_status 0 'persist off environment mode' env_profiles_set_mode off
+assert_status 2 'off is no longer a selectable environment mode' env_profiles_set_mode off
+assert_status 0 'stop profile-backed instance' "$test_bin/netdown"
 off_hook_output=$(env -u http_proxy -u HTTP_PROXY -u https_proxy -u HTTPS_PROXY -u all_proxy -u ALL_PROXY -u no_proxy -u NO_PROXY \
     HOME="$HOME" XDG_CONFIG_HOME="$XDG_CONFIG_HOME" XDG_STATE_HOME="$XDG_STATE_HOME" \
     NETUI_ENV_OWNED=1 http_proxy=owned HTTP_PROXY=owned bash --noprofile --norc -c 'source "$1"; printf "%s|%s|%s|%s|%s|%s|%s|%s\\n" "${http_proxy-}" "${HTTP_PROXY-}" "${https_proxy-}" "${HTTPS_PROXY-}" "${all_proxy-}" "${ALL_PROXY-}" "${no_proxy-}" "${NETUI_ENV_OWNED-}"' -- "$NETUI_SHELL_INIT_PATH")
-assert_true 'off mode clears only owned shell variables' test "$off_hook_output" = '|||||||'
-assert_status 0 'stop profile-backed instance' "$test_bin/netdown"
-assert_true 'environment preference survives netdown' test "$(env_profiles_get_mode)" = off
+assert_true 'netdown clears owned shell variables' test "$off_hook_output" = '|||||||'
+assert_true 'environment preference survives netdown' test "$(env_profiles_get_mode)" = cn-direct
 manual_hook_output=$(env -u http_proxy -u HTTP_PROXY -u https_proxy -u HTTPS_PROXY -u all_proxy -u ALL_PROXY -u no_proxy -u NO_PROXY \
     HOME="$HOME" XDG_CONFIG_HOME="$XDG_CONFIG_HOME" XDG_STATE_HOME="$XDG_STATE_HOME" \
     http_proxy=manual HTTP_PROXY=manual bash --noprofile --norc -c 'source "$1"; printf "%s|%s|%s|%s\\n" "${http_proxy-}" "${HTTP_PROXY-}" "${all_proxy-}" "${NETUI_ENV_OWNED-}"' -- "$NETUI_SHELL_INIT_PATH")
-assert_true 'off mode preserves unowned shell variables' test "$manual_hook_output" = 'manual|manual||'
+assert_true 'stopped runtime preserves unowned shell variables' test "$manual_hook_output" = 'manual|manual||'
 user_tmux_socket="netui-user-env-${BASHPID}-${RANDOM}"
 tmux -L "$user_tmux_socket" new-session -d -s user-env -- sleep 30
 NETUI_TMUX_SOCKET="$user_tmux_socket"
 tmux -L "$user_tmux_socket" set-environment -g http_proxy manual-tmux
-assert_status 0 'off mode leaves unowned tmux environment alone' env_profiles_set_mode off
+assert_status 0 'stopped runtime leaves unowned tmux environment alone' env_profiles_set_mode cn-direct
 user_tmux_env=$(tmux -L "$user_tmux_socket" show-environment -g 2>/dev/null || true)
-assert_true 'unowned tmux proxy survives off mode' grep -Fqx -- 'http_proxy=manual-tmux' <<< "$user_tmux_env"
+assert_true 'unowned tmux proxy survives stopped runtime' grep -Fqx -- 'http_proxy=manual-tmux' <<< "$user_tmux_env"
 tmux -L "$user_tmux_socket" kill-server >/dev/null 2>&1 || true
 NETUI_TMUX_SOCKET="$tmux_socket"
 
 # Shell rc integration is precise and idempotent; it is exercised in the temp HOME only.
 rm -f -- "$HOME/.bashrc" "$HOME/.zshrc"
+printf '%s\n' '[[ $- == *i* ]] || return 0' > "$HOME/.bashrc"
 assert_status 0 'install shell integration' shell_integration_install
 assert_status 0 'reinstall shell integration idempotently' shell_integration_install
 assert_true 'bashrc has one integration block' bash -c '[[ "$(grep -Fc "# >>> netui shell integration >>>" "$1")" == 1 ]]' -- "$HOME/.bashrc"
 assert_true 'zshrc has one integration block' bash -c '[[ "$(grep -Fc "# >>> netui shell integration >>>" "$1")" == 1 ]]' -- "$HOME/.zshrc"
+assert_true 'zshenv has one integration block' bash -c '[[ "$(grep -Fc "# >>> netui shell integration >>>" "$1")" == 1 ]]' -- "$HOME/.zshenv"
+assert_true 'hook loads before the noninteractive Bash early return' bash -c 'source "$HOME/.bashrc"; declare -F netup >/dev/null'
+assert_true 'noninteractive Zsh loads the command wrappers automatically' zsh -c '(( $+functions[netup] && $+functions[sudo] ))'
 prompt_command_result=$(env HOME="$HOME" XDG_CONFIG_HOME="$XDG_CONFIG_HOME" XDG_STATE_HOME="$XDG_STATE_HOME" bash --noprofile --norc -c 'PROMPT_COMMAND=existing_hook; source "$HOME/.bashrc"; printf "%s\\n" "$PROMPT_COMMAND"')
 assert_true 'Bash PROMPT_COMMAND preserves existing hook' bash -c '[[ "$1" == *existing_hook* && "$1" == *__netui_apply_env* ]]' -- "$prompt_command_result"
 zsh_precmd_result=$(env HOME="$HOME" XDG_CONFIG_HOME="$XDG_CONFIG_HOME" XDG_STATE_HOME="$XDG_STATE_HOME" zsh -f -c 'precmd_functions=(existing_hook); source "$HOME/.zshrc"; print -r -- "$precmd_functions"')
 assert_true 'Zsh precmd preserves existing hook' bash -c '[[ "$1" == *existing_hook* && "$1" == *__netui_apply_env* ]]' -- "$zsh_precmd_result"
 assert_status 0 'remove shell integration precisely' shell_integration_remove
 assert_true 'bashrc integration block removed' bash -c '! grep -Fq "# >>> netui shell integration >>>" "$1"' -- "$HOME/.bashrc"
+assert_true 'zshenv integration block removed' bash -c '! grep -Fq "# >>> netui shell integration >>>" "$1"' -- "$HOME/.zshenv"
+assert_true 'shell integration preserves the original rc content' grep -Fqx '[[ $- == *i* ]] || return 0' "$HOME/.bashrc"
+
+# Exercise shell wrappers without a prompt, including sudo argv and exit status.
+cat > "$test_bin/sudo" <<'EOF'
+#!/bin/bash
+printf '%s\n' "$@" > "$NETUI_SUDO_CAPTURE"
+printf '%s\n' "${http_proxy-}|${https_proxy-}|${all_proxy-}|${no_proxy-}" >> "$NETUI_SUDO_CAPTURE"
+exit 17
+EOF
+chmod 700 "$test_bin/sudo"
+cat > "$test_home/shell-chain.sh" <<'EOF'
+source "$NETUI_SHELL_INIT_PATH"
+netup >/dev/null && [[ "$http_proxy" == http://127.0.0.1:10808 && "$no_proxy" == *'.cn'* ]] || exit 1
+netui env-invalid >/dev/null 2>&1
+[[ $? == 2 ]] || exit 2
+sudo -u root printf '%s' 'argument with spaces'
+[[ $? == 17 ]] || exit 3
+[[ $(head -n 1 "$NETUI_SUDO_CAPTURE") == --preserve-env=http_proxy,HTTP_PROXY,https_proxy,HTTPS_PROXY,all_proxy,ALL_PROXY,no_proxy,NO_PROXY ]] || exit 4
+[[ $(sed -n '6p' "$NETUI_SUDO_CAPTURE") == 'argument with spaces' ]] || exit 5
+[[ $(tail -n 1 "$NETUI_SUDO_CAPTURE") == 'http://127.0.0.1:10808|http://127.0.0.1:10808|socks5h://127.0.0.1:10808|'*'.cn'* ]] || exit 6
+netdown >/dev/null && [[ -z ${http_proxy-}${https_proxy-}${all_proxy-}${NETUI_ENV_OWNED-} ]] || exit 7
+sudo -n true
+[[ $? == 17 ]] || exit 8
+[[ $(head -n 1 "$NETUI_SUDO_CAPTURE") == -n ]] || exit 9
+netup unexpected.json >/dev/null 2>&1
+[[ $? == 2 && -z ${http_proxy-} ]] || exit 10
+EOF
+for test_shell in bash zsh; do
+    assert_status 0 "$test_shell synchronizes chained commands and preserves only proxy variables for sudo" \
+        env PATH="$test_bin:$PATH" NETUI_SUDO_CAPTURE="$test_home/sudo-args" "$test_shell" "$test_home/shell-chain.sh"
+done
+env_profiles_write_value "$NETUI_ENV_MODE_FILE" off
+assert_status 0 'netup migrates the legacy off preference' "$test_bin/netup"
+assert_true 'legacy off is persisted as cn-direct' grep -Fqx cn-direct "$NETUI_ENV_MODE_FILE"
+assert_status 0 'stop migrated runtime' "$test_bin/netdown"
+
+tui_v2_model_refresh
+for cycle_key in CTRL_UP CTRL_DOWN; do
+    assert_status 0 "$cycle_key switches cn-direct to global" tui_v2_dispatch_key "$cycle_key"
+    assert_true "$cycle_key persists global" test "$(env_profiles_get_mode)" = global
+    assert_status 0 "$cycle_key wraps global back to cn-direct" tui_v2_dispatch_key "$cycle_key"
+    assert_true "$cycle_key persists cn-direct" test "$(env_profiles_get_mode)" = cn-direct
+done
+
+tui_incremental_render_works() (
+    NETUI_TUI_FIXED_ROWS=24
+    NETUI_TUI_FIXED_COLS=112
+    NETUI_TUI_COLOR=never
+    tui_terminal_active=1
+    tui_terminal_screen_generation=1
+    tui_v2_selected_index=0
+    tui_v2_render_frame > "$test_home/frame-first"
+    tui_v2_render_frame > "$test_home/frame-idle"
+    [[ ! -s "$test_home/frame-idle" ]] || return 1
+    tui_v2_dispatch_key DOWN || return 1
+    tui_v2_render_frame > "$test_home/frame-move"
+    [[ -s "$test_home/frame-move" ]] || return 1
+    [[ $(wc -c < "$test_home/frame-move") -lt $(wc -c < "$test_home/frame-first") ]] || return 1
+    tui_terminal_screen_generation=2
+    tui_v2_render_frame > "$test_home/frame-reenter"
+    grep -Fq $'\033[H' "$test_home/frame-reenter"
+)
+assert_true 'terminal emits only changed rows and repaints after reentering' tui_incremental_render_works
 
 # Deterministic TUI actions exercise business paths and renderer invariants.
 tui_list_output="$test_home/tui-list.txt"
@@ -492,7 +560,7 @@ tui_idle_output="$test_home/tui-idle.typescript"
 assert_status 0 'capture a real idle PTY session' capture_idle_tui "$tui_idle_output"
 assert_true 'idle PTY emits one frame and one initial clear' idle_tui_output_is_stable "$tui_idle_output"
 tui_color_output="$test_home/tui-color.txt"
-assert_status 0 'TUI emits the color theme when requested' bash -c 'NETUI_TUI_FIXED_ROWS=24 NETUI_TUI_FIXED_COLS=112 NETUI_TUI_COLOR=always NETUI_TUI_ACTIONS="list;quit" "$1" > "$2" 2>&1' -- "$test_bin/netui" "$tui_color_output"
+assert_status 0 'TUI emits the color theme when requested' env -u NO_COLOR bash -c 'NETUI_TUI_FIXED_ROWS=24 NETUI_TUI_FIXED_COLS=112 NETUI_TUI_COLOR=always NETUI_TUI_ACTIONS="list;quit" "$1" > "$2" 2>&1' -- "$test_bin/netui" "$tui_color_output"
 assert_true 'color theme includes layered backgrounds' grep -Fq $'\033[1;38;5;231;48;5;24m' "$tui_color_output"
 tui_no_color_output="$test_home/tui-no-color.txt"
 assert_status 0 'NO_COLOR disables the requested TUI theme' bash -c 'NO_COLOR=1 NETUI_TUI_FIXED_ROWS=24 NETUI_TUI_FIXED_COLS=112 NETUI_TUI_COLOR=always NETUI_TUI_ACTIONS="list;quit" "$1" > "$2" 2>&1' -- "$test_bin/netui" "$tui_no_color_output"

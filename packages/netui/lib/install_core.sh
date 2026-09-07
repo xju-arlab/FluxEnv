@@ -519,9 +519,8 @@ install_core_initialize_runtime() {
     # shellcheck source=./shell_integration.sh
     source "$package_root/lib/shell_integration.sh"
     netui_init_dirs || return 1
-    if [[ ! -e "$NETUI_ENV_MODE_FILE" && ! -L "$NETUI_ENV_MODE_FILE" ]]; then
-        env_profiles_set_mode off || return 1
-    fi
+    env_profiles_read_mode || return 1
+    env_profiles_set_mode "$env_mode" || return 1
 }
 
 install_core_acquire_lock() {
@@ -695,20 +694,15 @@ install_core_install_release_locked() {
     install_core_info 'installing netup/netdown/netui command links'
 
     install_core_initialize_runtime "$path" || return 1
-    if [[ -f "$HOME/.bashrc" && -t 0 && -t 1 ]]; then
-        printf 'Install NetUI Bash/Zsh shell hook? [y/N] '
-        read -r answer || answer=''
-        if [[ "$answer" == y || "$answer" == Y ]]; then
-            shell_integration_install || return 1
-        fi
-    fi
+    install_core_info 'installing automatic Bash/Zsh proxy synchronization'
+    shell_integration_install || return 1
     for file in "$HOME/.bashrc" "$HOME/.zshrc"; do
         install_core_path_block_install "$file" || return 1
     done
 
     install_core_info "installed NetUI $version for linux/$(install_core_detect_arch)"
     install_core_info "commands: $NETUI_INSTALL_BIN_HOME/netup, netdown, netui"
-    install_core_info 'environment mode: off on first install; existing preference preserved'
+    install_core_info 'netup enables proxy variables automatically; sudo inherits the proxy variables'
     install_core_info 'open a new shell before checking command resolution'
     install_core_info 'completed'
 }

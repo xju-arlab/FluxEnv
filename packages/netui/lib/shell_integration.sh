@@ -58,6 +58,9 @@ shell_integration_install_file() {
     local end_marker='# <<< netui shell integration <<<'
     local start_count=0
     local end_count=0
+    local temporary_file=''
+    local inside_block=0
+    local line=''
 
     [[ "$rc_file" == /* && "$init_path" == /* ]] || return 1
     if [[ ! -e "$rc_file" ]]; then
@@ -69,13 +72,34 @@ shell_integration_install_file() {
     end_count=$(shell_integration_marker_count "$rc_file" "$end_marker")
     if ((start_count > 0 || end_count > 0)); then
         ((start_count == 1 && end_count == 1)) || return 1
-        return 0
     fi
 
+    temporary_file=$(umask 077; mktemp "$rc_file.netui.XXXXXX") || return 1
+    # Place the hook before Ubuntu's noninteractive early return so SSH commands
+    # inherit the same environment as an interactive terminal.
     {
-        printf '\n'
         shell_integration_block "$init_path"
-    } >> "$rc_file" || return 1
+        while IFS= read -r line || [[ -n "$line" ]]; do
+            if [[ "$line" == "$start_marker" ]]; then
+                inside_block=1
+                continue
+            fi
+            if [[ "$line" == "$end_marker" ]]; then
+                inside_block=0
+                continue
+            fi
+            ((inside_block == 0)) && printf '%s\n' "$line"
+        done < "$rc_file"
+        true
+    } > "$temporary_file" || {
+        rm -f -- "$temporary_file"
+        return 1
+    }
+    chmod --reference="$rc_file" "$temporary_file" || {
+        rm -f -- "$temporary_file"
+        return 1
+    }
+    mv -Tf -- "$temporary_file" "$rc_file" || return 1
     return 0
 }
 
@@ -127,10 +151,10 @@ _shell_integration_install_unlocked() {
     }
     backup_dir=$(shell_integration_prepare_backup_dir) || return 1
 
-    for rc_file in "$HOME/.bashrc" "$HOME/.zshrc"; do
+    for rc_file in "$HOME/.bashrc" "$HOME/.zshenv" "$HOME/.zshrc"; do
         shell_integration_backup_file "$rc_file" "$backup_dir" || return 1
     done
-    for rc_file in "$HOME/.bashrc" "$HOME/.zshrc"; do
+    for rc_file in "$HOME/.bashrc" "$HOME/.zshenv" "$HOME/.zshrc"; do
         shell_integration_install_file "$rc_file" "$init_path" || return 1
     done
     netui_print_info 'Bash and Zsh shell integration installed idempotently'
@@ -146,10 +170,10 @@ _shell_integration_remove_unlocked() {
     local rc_file=''
 
     backup_dir=$(shell_integration_prepare_backup_dir) || return 1
-    for rc_file in "$HOME/.bashrc" "$HOME/.zshrc"; do
+    for rc_file in "$HOME/.bashrc" "$HOME/.zshenv" "$HOME/.zshrc"; do
         shell_integration_backup_file "$rc_file" "$backup_dir" || return 1
     done
-    for rc_file in "$HOME/.bashrc" "$HOME/.zshrc"; do
+    for rc_file in "$HOME/.bashrc" "$HOME/.zshenv" "$HOME/.zshrc"; do
         shell_integration_remove_file "$rc_file" || return 1
     done
     netui_print_info 'Bash and Zsh shell integration removed'

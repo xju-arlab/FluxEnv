@@ -20,6 +20,12 @@ tui_v2_inner_width=77
 tui_v2_frame=''
 tui_v2_fit_result=''
 tui_v2_field_result=''
+tui_v2_clean_result=''
+tui_v2_environment='cn-direct|off|0'
+tui_v2_version='?'
+tui_v2_previous_size=''
+tui_v2_previous_screen=-1
+declare -a tui_v2_previous_lines=()
 tui_v2_color_enabled=0
 tui_v2_theme_reset=''
 tui_v2_theme_canvas=''
@@ -48,13 +54,19 @@ declare -a tui_v2_latencies=()
 declare -a tui_v2_speeds=()
 declare -a tui_v2_logs=()
 
-tui_v2_clean_text() {
+tui_v2_sanitize_text() {
     local input=${1:-}
     local output=''
     local char=''
     local state=plain
     local ordinal=0
     local index=0
+    local ascii_pattern='^[ -~]*$'
+
+    if [[ "$input" =~ $ascii_pattern ]]; then
+        tui_v2_clean_result=$input
+        return 0
+    fi
 
     tui_terminal_init_text_locale
     local LC_ALL=$tui_terminal_text_locale
@@ -103,7 +115,12 @@ tui_v2_clean_text() {
                 ;;
         esac
     done
-    printf '%s' "$output"
+    tui_v2_clean_result=$output
+}
+
+tui_v2_clean_text() {
+    tui_v2_sanitize_text "${1:-}"
+    printf '%s' "$tui_v2_clean_result"
 }
 
 tui_v2_fit_text() {
@@ -116,13 +133,16 @@ tui_v2_fit_text() {
     local index=0
     local suffix=''
     local padding=''
+    local ascii_pattern='^[ -~]*$'
 
     tui_terminal_init_text_locale
     local LC_ALL=$tui_terminal_text_locale
     [[ "$width" =~ ^[0-9]+$ ]] || width=1
     ((width >= 0)) || width=0
-    value=$(tui_v2_clean_text "${1:-}")
-    total_width=$(tui_terminal_cell_width "$value")
+    tui_v2_sanitize_text "${1:-}"
+    value=$tui_v2_clean_result
+    tui_terminal_measure_text "$value"
+    total_width=$tui_terminal_text_cells
     tui_v2_fit_result=''
 
     if ((total_width > width)); then
@@ -131,17 +151,22 @@ tui_v2_fit_text() {
             suffix='...'
             target_width=$((width - 3))
         fi
-        for ((index = 0; index < ${#value}; index++)); do
-            char=${value:index:1}
-            tui_terminal_char_width "$char"
-            if ((tui_terminal_char_cells == 0)); then
-                [[ -n "$tui_v2_fit_result" ]] && tui_v2_fit_result+=$char
-                continue
-            fi
-            ((used_width + tui_terminal_char_cells <= target_width)) || break
-            tui_v2_fit_result+=$char
-            used_width=$((used_width + tui_terminal_char_cells))
-        done
+        if [[ "$value" =~ $ascii_pattern ]]; then
+            tui_v2_fit_result=${value:0:target_width}
+            used_width=$target_width
+        else
+            for ((index = 0; index < ${#value}; index++)); do
+                char=${value:index:1}
+                tui_terminal_char_width "$char"
+                if ((tui_terminal_char_cells == 0)); then
+                    [[ -n "$tui_v2_fit_result" ]] && tui_v2_fit_result+=$char
+                    continue
+                fi
+                ((used_width + tui_terminal_char_cells <= target_width)) || break
+                tui_v2_fit_result+=$char
+                used_width=$((used_width + tui_terminal_char_cells))
+            done
+        fi
         tui_v2_fit_result+=$suffix
         used_width=$((used_width + ${#suffix}))
     else
@@ -176,7 +201,8 @@ tui_v2_make_field() {
     tui_v2_field_result=$tui_v2_fit_result
     if [[ "$align" == right ]]; then
         tui_v2_field_result=${tui_v2_field_result%${tui_v2_field_result##*[! ]}}
-        text_width=$(tui_terminal_cell_width "$tui_v2_field_result")
+        tui_terminal_measure_text "$tui_v2_field_result"
+        text_width=$tui_terminal_text_cells
         printf -v padding '%*s' "$((width - text_width))" ''
         tui_v2_field_result="$padding$tui_v2_field_result"
     fi
@@ -259,7 +285,8 @@ tui_v2_box_rule() {
     local right=$3
     local rule=''
 
-    rule=$(tui_v2_repeat "$tui_v2_inner_width" "$middle")
+    printf -v rule '%*s' "$tui_v2_inner_width" ''
+    rule=${rule// /$middle}
     tui_v2_frame_append "${tui_v2_theme_canvas}${tui_v2_theme_border}${left}${rule}${right}${tui_v2_theme_reset}"
 }
 
@@ -291,6 +318,16 @@ tui_v2_collect_logs() {
     fi
 }
 
+tui_v2_refresh_status() {
+    tui_running_state
+    tui_v2_default_basename=$(tui_default_basename)
+    tui_v2_environment=$(tui_environment_summary)
+    if [[ -f "${NETUI_PACKAGE_ROOT:-.}/VERSION" ]]; then
+        IFS= read -r tui_v2_version < "${NETUI_PACKAGE_ROOT:-.}/VERSION" || tui_v2_version='?'
+    fi
+    tui_v2_collect_logs
+}
+
 tui_v2_model_refresh() {
     local previous_basename=${tui_v2_selected_basename:-}
     local path=''
@@ -308,7 +345,6 @@ tui_v2_model_refresh() {
     local index=0
 
     tui_refresh_configs
-    tui_running_state
     tui_v2_paths=()
     tui_v2_names=()
     tui_v2_protocols=()
@@ -366,7 +402,7 @@ tui_v2_model_refresh() {
         tui_v2_selected_basename=${tui_v2_paths[$tui_v2_selected_index]##*/}
         tui_selected_path=${tui_v2_paths[$tui_v2_selected_index]}
     fi
-    tui_v2_collect_logs
+    tui_v2_refresh_status
     tui_v2_model_ready=1
 }
 
@@ -493,8 +529,31 @@ tui_v2_build_table_line() {
 }
 
 tui_v2_emit_frame() {
+    local line=''
+    local row=0
+    local update=''
+    local output=''
+    local size="$tui_v2_rows|$tui_v2_cols"
+    local -a lines=()
+
     if ((tui_terminal_active)); then
-        printf '\033[H%s%s\033[J' "$tui_v2_frame" "$tui_v2_theme_reset"
+        while IFS= read -r line; do
+            lines+=("$line")
+        done <<< "$tui_v2_frame"
+        if [[ "$size" != "$tui_v2_previous_size" || "$tui_terminal_screen_generation" != "$tui_v2_previous_screen" ]]; then
+            printf '\033[H%s%s\033[J' "$tui_v2_frame" "$tui_v2_theme_reset"
+        else
+            for row in "${!lines[@]}"; do
+                if [[ "${lines[$row]}" != "${tui_v2_previous_lines[$row]-}" ]]; then
+                    printf -v update '\033[%d;1H%s\033[K' "$((row + 1))" "${lines[$row]}"
+                    output+=$update
+                fi
+            done
+            [[ -z "$output" ]] || printf '%s%s' "$output" "$tui_v2_theme_reset"
+        fi
+        tui_v2_previous_lines=("${lines[@]}")
+        tui_v2_previous_size=$size
+        tui_v2_previous_screen=$tui_terminal_screen_generation
     else
         printf '%s\n' "$tui_v2_frame"
     fi
@@ -519,7 +578,7 @@ tui_v2_render_small_frame() {
 
 tui_v2_render_frame() {
     local size=''
-    local version='?'
+    local version=$tui_v2_version
     local selected_name='-'
     local selected_endpoint='-'
     local environment=''
@@ -555,11 +614,7 @@ tui_v2_render_frame() {
         return 0
     fi
 
-    if [[ -f "${NETUI_PACKAGE_ROOT:-.}/VERSION" ]]; then
-        IFS= read -r version < "${NETUI_PACKAGE_ROOT:-.}/VERSION" || version='?'
-    fi
-    tui_v2_default_basename=$(tui_default_basename)
-    environment=$(tui_environment_summary)
+    environment=$tui_v2_environment
     IFS='|' read -r env_mode env_effective env_bytes <<< "$environment"
     tui_v2_sync_selection
     if ((count > 0)); then
@@ -593,11 +648,11 @@ tui_v2_render_frame() {
         tui_v2_box_rule '╭' '─' '╮'
         tui_v2_line " NetUI v$version  |  Runtime: ${tui_running_status:-stopped} ${tui_running_basename:--}  |  Default: ${tui_v2_default_basename:--}  |  Mode: $env_mode" "$tui_v2_theme_title"
         if ((tui_v2_inner_width >= 96)); then
-            tui_v2_line ' [Up/Down] Select   [Enter] Default   [Ctrl+Up] Global   [Ctrl+Down] CN direct   [Ctrl+R] Restart' "$tui_v2_theme_toolbar"
+            tui_v2_line ' [Up/Down] Select   [Enter] Default   [Ctrl+Up/Down] Cycle mode   [Ctrl+R] Restart' "$tui_v2_theme_toolbar"
         else
-            tui_v2_line ' [Up/Down] Select   [Enter] Default   [g/w/o] Modes   [Ctrl+R] Restart' "$tui_v2_theme_toolbar"
+            tui_v2_line ' [Up/Down] Select   [Enter] Default   [Ctrl+Up/Down] Mode   [Ctrl+R] Restart' "$tui_v2_theme_toolbar"
         fi
-        tui_v2_line ' [i] Import   [r] Refresh   [l] Logs   [o] Env off   [?] Help   [q] Quit' "$tui_v2_theme_toolbar"
+        tui_v2_line ' [i] Import   [r] Refresh   [l] Logs   [u/x] Start/Stop   [?] Help   [q] Quit' "$tui_v2_theme_toolbar"
         tui_v2_box_rule '├' '─' '┤'
         if ((count > config_rows)); then
             section_title=" CONFIGURATIONS  $((tui_v2_scroll_offset + 1))-$((tui_v2_scroll_offset + config_rows))/$count  [> selected  * default  + running  ! invalid]"
@@ -642,7 +697,7 @@ tui_v2_render_frame() {
 
         tui_v2_box_rule '╭' '─' '╮'
         tui_v2_line " NetUI v$version | ${tui_running_status:-stopped} | mode:$env_mode | default:${tui_v2_default_basename:--}" "$tui_v2_theme_title"
-        tui_v2_line ' [Up/Down] Select  [Enter] Default  [i] Import  [g/w/o] Mode  [?] Help  [q] Quit' "$tui_v2_theme_toolbar"
+        tui_v2_line ' [Up/Down] Select  [Enter] Default  [Ctrl+Up/Down] Mode  [i] Import  [q] Quit' "$tui_v2_theme_toolbar"
         tui_v2_box_rule '├' '─' '┤'
         tui_v2_line ' CONFIGURATIONS  [> selected  * default  + running  ! invalid]' "$tui_v2_theme_section"
         tui_v2_build_table_line header
@@ -686,12 +741,17 @@ tui_v2_run_business() {
     else
         tui_v2_set_status error "${label} failed (exit $status)"
     fi
-    tui_v2_model_refresh
+    case "${1:-}" in
+        env_profiles_set_mode|tui_action_start|tui_action_stop|tui_action_restart)
+            tui_v2_refresh_status
+            ;;
+        *) tui_v2_model_refresh ;;
+    esac
     return "$status"
 }
 
 tui_v2_modal_help() {
-    tui_v2_modal_message='↑↓ move | Enter default | Ctrl↑ global | Ctrl↓ cn-direct | CtrlR restart | i import | o off | q quit'
+    tui_v2_modal_message='↑↓ move | Enter default | Ctrl↑/↓ cycle cn-direct/global | CtrlR restart | i import | u/x start/stop | q quit'
     tui_v2_render_frame
     tui_terminal_read_key 30 || true
     tui_v2_modal_message=''
@@ -791,6 +851,7 @@ tui_v2_dispatch_key() {
     local key=$1
     local count=${#tui_v2_paths[@]}
     local status=0
+    local mode=''
 
     case "$key" in
         UP)
@@ -804,14 +865,16 @@ tui_v2_dispatch_key() {
             tui_selected_path=${tui_v2_paths[$tui_v2_selected_index]}
             tui_v2_run_business 'set default' config_store_set_default "$tui_selected_path" || status=$?
             ;;
-        CTRL_UP|MODE_GLOBAL)
+        CTRL_UP|CTRL_DOWN)
+            mode=$(env_profiles_get_mode) || return 1
+            [[ "$mode" == global ]] && mode=cn-direct || mode=global
+            tui_v2_run_business "$mode mode" env_profiles_set_mode "$mode" || status=$?
+            ;;
+        MODE_GLOBAL)
             tui_v2_run_business 'global mode' env_profiles_set_mode global || status=$?
             ;;
-        CTRL_DOWN|MODE_WHITELIST)
+        MODE_WHITELIST)
             tui_v2_run_business 'cn-direct mode' env_profiles_set_mode cn-direct || status=$?
-            ;;
-        MODE_OFF)
-            tui_v2_run_business 'off mode' env_profiles_set_mode off || status=$?
             ;;
         CTRL_R)
             if tui_terminal_confirm; then
@@ -920,6 +983,7 @@ tui_v2_run() {
     tui_terminal_restore
     trap - INT TERM HUP WINCH
     [[ -n "$saved_traps" ]] && eval "$saved_traps"
+    return 0
 }
 
 tui_v2_render_dashboard() {

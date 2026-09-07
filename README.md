@@ -8,10 +8,10 @@ FluxEnv 是一个基于 Bash 的环境初始化工具，面向 WSL、Ubuntu / De
 
 ## NetUI 快速安装
 
-使用 GitCode Release 中经过校验的 NetUI v0.2.2 固定版本安装器：
+使用 GitCode Release 中经过校验的 NetUI v0.2.3 固定版本安装器：
 
 ```bash
-curl -fsSL 'https://gitcode.com/winbeau/FluxEnv/releases/download/v0.2.2/install-v0.2.2.sh' | sh
+curl -fsSL 'https://gitcode.com/winbeau/FluxEnv/releases/download/v0.2.3/install-v0.2.3.sh' | sh
 ```
 
 安装完成后可运行 `netui --version` 确认版本，并通过 `netui` 打开全屏配置界面。更多说明见 [`packages/netui/README.md`](packages/netui/README.md)。

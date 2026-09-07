@@ -58,12 +58,12 @@ case "$scene" in
             "$package_root/bin/netctl" netui
         ;;
     narrow)
-        NETUI_TUI_ACTIONS='env:off;quit' "$package_root/bin/netctl" netui >/dev/null
+        NETUI_TUI_ACTIONS='env:cn-direct;quit' "$package_root/bin/netctl" netui >/dev/null
         NETUI_TUI_FIXED_ROWS=24 NETUI_TUI_FIXED_COLS=70 NETUI_TUI_COLOR=always NETUI_TUI_DISABLE_ALT_SCREEN=1 \
             "$package_root/bin/netctl" netui
         ;;
     fallback)
-        NETUI_GUM="$NETUI_VISUAL_HOME/no-gum" NETUI_TUI_FALLBACK=1 COLUMNS=112 NETUI_TUI_ACTIONS='env:off;list;quit' \
+        NETUI_GUM="$NETUI_VISUAL_HOME/no-gum" NETUI_TUI_FALLBACK=1 COLUMNS=112 NETUI_TUI_ACTIONS='env:cn-direct;list;quit' \
             "$package_root/bin/netctl" netui
         ;;
     *)

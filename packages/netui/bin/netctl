@@ -45,8 +45,9 @@ Usage:
   netui [--help|--version]
 
 netup starts only the JSON selected by ~/.config/netui/default.json.
+It enables the saved proxy mode (cn-direct by default) for integrated shells.
 netdown stops only a verified NetUI-owned tmux instance.
-netui is reserved for the interactive configuration UI.
+netui opens the configuration UI; Ctrl+Up/Down cycles cn-direct/global.
 EOF
 }
 
