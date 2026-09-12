@@ -42,6 +42,16 @@ NETUI_ROUTE_FIX
 
 在 cannlab 实测，同一内网 DNS 查询不绑定网卡约 1 ms 返回，绑定 eth0 后超时；移除该设置后 Hysteria2 和 VLESS WebSocket 均恢复。设置语义见 [sing-box 官方文档](https://sing-box.sagernet.org/configuration/route/#auto_detect_interface)。
 
+### Git 克隆停在传输阶段
+
+如果 DNS 和 TLS 已正常、`git ls-remote` 成功，但完整克隆仍长时间停顿，可让 GitHub 请求使用 HTTP/1.1。cannlab 的 Git 2.25.1 / curl 7.68.0 与当前代理链路实测：HTTP/2 收到 200 后传输停顿，HTTP/1.1 约 8 秒完成同一仓库克隆。以下设置只针对 GitHub，不固定代理端口：
+
+```bash
+git config --global http.https://github.com/.version HTTP/1.1
+```
+
+curl 遇到相同的传输停顿时，可在该次命令加 `--http1.1`。协议选项说明见 [Git 官方文档](https://git-scm.com/docs/git-config#Documentation/git-config.txt-httpversion)。
+
 ### IPv6 或节点 DNS 超时
 
 若出现 `gnutls_handshake() failed`，先在 `netui` 中换节点并重启，再检查 HTTPS 请求和代理日志：
