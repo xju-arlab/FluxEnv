@@ -8,13 +8,39 @@ FluxEnv 是一个基于 Bash 的环境初始化工具，面向 WSL、Ubuntu / De
 
 ## NetUI 代理配置
 
-使用 GitCode Release 中经过校验的 NetUI v0.2.3 固定版本安装器：
+使用 GitCode Release 中经过校验的 NetUI v0.2.4 固定版本安装器：
 
 ```bash
-curl -fsSL 'https://gitcode.com/winbeau/FluxEnv/releases/download/v0.2.3/install-v0.2.3.sh' | sh
+curl -fsSL 'https://gitcode.com/winbeau/FluxEnv/releases/download/v0.2.4/install-v0.2.4.sh' | sh
 ```
 
 首次安装后重新登录 SSH。`netup` 自动设置当前终端的代理环境，Git 直接继承，无需手动 `export` 或另配 `git config`。
+
+### 容器中节点 DNS 超时
+
+v0.2.4 修复了分享链接导入模板的网卡绑定设置。旧版生成的 `auto_detect_interface: true` 会把出站连接绑定到默认网卡，可能导致容器内网 DNS 超时，表现为代理启动成功、Git/curl 却握手失败。v0.2.4 新导入的节点使用系统路由；升级会保留已有 JSON，旧节点可重新导入，或选为默认后复制以下命令修复。命令只处理本地 HTTP/SOCKS 配置，校验并备份后重启：
+
+```bash
+bash <<'NETUI_ROUTE_FIX' && netdown && netup
+    set -eu
+    umask 077
+    netui_config=$(realpath -e "${XDG_CONFIG_HOME:-$HOME/.config}/netui/default.json")
+    netui_stage=$(mktemp "${netui_config%/*}/.netui-route.XXXXXX")
+    trap 'rm -f -- "$netui_stage"' EXIT
+    jq -e 'if (.inbounds | length) > 0 and
+        all(.inbounds[]; .type == "mixed" or .type == "http" or .type == "socks")
+        then del(.route.auto_detect_interface)
+        else error("此修复只适用于 HTTP/SOCKS 代理配置") end' \
+        "$netui_config" > "$netui_stage"
+    "${XDG_DATA_HOME:-$HOME/.local/share}/netui/current/bin/sing-box" check -c "$netui_stage"
+    netui_backup=$(mktemp "${netui_config}.bak.XXXXXX")
+    cp -- "$netui_config" "$netui_backup"
+    mv -Tf -- "$netui_stage" "$netui_config"
+    printf '原配置已备份到：%s\n' "$netui_backup"
+NETUI_ROUTE_FIX
+```
+
+在 cannlab 实测，同一内网 DNS 查询不绑定网卡约 1 ms 返回，绑定 eth0 后超时；移除该设置后 Hysteria2 和 VLESS WebSocket 均恢复。设置语义见 [sing-box 官方文档](https://sing-box.sagernet.org/configuration/route/#auto_detect_interface)。
 
 ### IPv6 或节点 DNS 超时
 

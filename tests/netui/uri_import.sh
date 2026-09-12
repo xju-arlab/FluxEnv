@@ -120,6 +120,14 @@ hysteria_config="$test_home/hysteria2.json"
 assert_status 0 'generate Hysteria2 JSON' share_uri_generate_config "$hysteria_config"
 assert_json_query 'generated Hysteria2 JSON maps insecure TLS and obfs' "$(<"$hysteria_config")" '.outbounds[0].type == "hysteria2" and .outbounds[0].password == "SYNTHETIC-HY2-PASSWORD" and .outbounds[0].tls.insecure == true and .outbounds[0].obfs.type == "salamander"'
 
+for proxy_config in "$reality_config" "$ws_config" "$hysteria_config"; do
+    assert_json_query 'mixed proxy uses system routing without binding DNS to a NIC' "$(<"$proxy_config")" '
+        .inbounds[0].type == "mixed" and .route.final == "proxy"
+        and (.route.auto_detect_interface != true)
+        and ((.route.default_interface // "") == "")
+        and all(.outbounds[]; (.bind_interface // "") == "")'
+done
+
 hy2_uri="hy2${hysteria_uri#hysteria2}"
 assert_status 0 'parse hy2 alias' share_uri_parse "$hy2_uri"
 assert_true 'hy2 alias normalizes to Hysteria2 protocol' test "$share_uri_protocol" = hysteria2

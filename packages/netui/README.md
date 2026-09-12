@@ -34,6 +34,8 @@ ln -s /path/to/packages/netui/bin/netctl ~/.local/bin/netui
 
 配置目录只发现第一层普通 `*.json` 文件。配置会经过 `jq empty` 和 `sing-box check -c` 两级校验，并收紧为 mode `600`。默认链接由配置库以相对 symlink 原子替换，不能指向目录外、symlink、FIFO、设备或其他非普通文件。
 
+v0.2.4 起，分享链接生成的本地 mixed 代理配置使用系统路由，不再启用 `route.auto_detect_interface`。强制网卡绑定会使部分容器的内网 DNS 查询超时。升级保留已有配置；旧版导入的节点可重新导入，或按[容器 DNS 修复说明](../../README.md#容器中节点-dns-超时)移除该字段后重启。
+
 ## 环境 profile
 
 - `global`：HTTP/HTTPS/ALL proxy 指向当前 loopback endpoint，`no_proxy` 只有 `localhost,127.0.0.1,::1`。
@@ -56,7 +58,7 @@ ln -s /path/to/packages/netui/bin/netctl ~/.local/bin/netui
 固定版本安装：
 
 ```bash
-curl -fsSL 'https://gitcode.com/winbeau/FluxEnv/releases/download/v0.2.3/install-v0.2.3.sh' | sh
+curl -fsSL 'https://gitcode.com/winbeau/FluxEnv/releases/download/v0.2.4/install-v0.2.4.sh' | sh
 ```
 
 本地构建：
@@ -64,7 +66,7 @@ curl -fsSL 'https://gitcode.com/winbeau/FluxEnv/releases/download/v0.2.3/install
 ```bash
 bash packages/netui/install.sh --asset-dir /path/to/locked-assets
 bash packages/netui/scripts/build-release.sh --asset-dir /path/to/locked-assets \
-    --release-base-url 'https://gitcode.com/winbeau/FluxEnv/releases/download/v0.2.3'
+    --release-base-url 'https://gitcode.com/winbeau/FluxEnv/releases/download/v0.2.4'
 ```
 
 `manifest.lock` 固定 sing-box 1.13.18、gum 2.0.0 的 Linux amd64/arm64 来源和 SHA256。安装器会校验资产、创建版本目录和 `current` 原子链接，并只在验证通过后建立 `netup`、`netdown`、`netui` 链接。`bootstrap.sh`/`install-v*.sh` 只接受固定 HTTPS Release 目录，不接受 `latest`。GPL 对应源码入口见 `SOURCE-CODE-OFFER.md`。

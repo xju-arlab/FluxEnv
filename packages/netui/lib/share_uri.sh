@@ -957,7 +957,7 @@ share_uri_json_write() {
                             }),
                             {type: "direct", tag: "direct"}
                         ],
-                        route: {auto_detect_interface: true, final: "proxy"}
+                        route: {final: "proxy"}
                     }
                 ' > "$output_path"
         elif [[ "$share_uri_variant" == ws/tls ]]; then
@@ -992,7 +992,7 @@ share_uri_json_write() {
                             }),
                             {type: "direct", tag: "direct"}
                         ],
-                        route: {auto_detect_interface: true, final: "proxy"}
+                        route: {final: "proxy"}
                     }
                 ' > "$output_path"
         else
@@ -1023,7 +1023,7 @@ share_uri_json_write() {
                             + (if $obfs == "" then {} else {obfs: {type: $obfs, password: $obfs_password}} end)),
                             {type: "direct", tag: "direct"}
                         ],
-                        route: {auto_detect_interface: true, final: "proxy"}
+                        route: {final: "proxy"}
                     }
                 ' > "$output_path"
         fi
