@@ -59,6 +59,20 @@ fi
 [[ ! -r \$_fluxenv_config/macos.local.zsh ]] || source "\$_fluxenv_config/macos.local.zsh"
 
 # Plugins run after the existing .zshrc and personal settings.
+typeset -g ZSH_AUTOSUGGEST_HIGHLIGHT_STYLE='fg=#8B949E'
+typeset -gA ZSH_HIGHLIGHT_STYLES
+ZSH_HIGHLIGHT_STYLES[default]='fg=#E6EDF3'
+ZSH_HIGHLIGHT_STYLES[unknown-token]='fg=#E78A8A'
+ZSH_HIGHLIGHT_STYLES[reserved-word]='fg=#D6B48C'
+ZSH_HIGHLIGHT_STYLES[precommand]='fg=#A8D5BA'
+ZSH_HIGHLIGHT_STYLES[commandseparator]='fg=#8B949E'
+ZSH_HIGHLIGHT_STYLES[path]='fg=#B8C1CC'
+ZSH_HIGHLIGHT_STYLES[path_pathseparator]='fg=#8B949E'
+ZSH_HIGHLIGHT_STYLES[single-quoted-argument]='fg=#D6B48C'
+ZSH_HIGHLIGHT_STYLES[double-quoted-argument]='fg=#D6B48C'
+ZSH_HIGHLIGHT_STYLES[dollar-quoted-argument]='fg=#D6B48C'
+ZSH_HIGHLIGHT_STYLES[redirection]='fg=#C4A7E7'
+ZSH_HIGHLIGHT_STYLES[comment]='fg=#6E7681'
 if [[ -r \$_fluxenv_prefix/share/zsh-autosuggestions/zsh-autosuggestions.zsh ]]; then
     source "\$_fluxenv_prefix/share/zsh-autosuggestions/zsh-autosuggestions.zsh"
 fi

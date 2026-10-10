@@ -1,23 +1,41 @@
-# FluxEnv bare-metal prompt, shared appearance with the Linux host profile.
+# FluxEnv macOS prompt. Tuned for Terminal Pro's dark background.
+palette = "fluxenv_pro"
+add_newline = false
+command_timeout = 500
+
+[palettes.fluxenv_pro]
+text = "#E6EDF3"
+muted = "#8B949E"
+user = "#8FB8D8"
+host = "#78C7C7"
+path = "#D8DEE9"
+branch = "#C4A7E7"
+status = "#E5A97B"
+success = "#A8D5BA"
+error = "#E78A8A"
+quote = "#D6B48C"
+
+format = """
+[╭─](fg:muted)$username$hostname$directory$git_branch$git_status
+[╰─](fg:muted)$character """
+
 [username]
-style_user = "yellow bold"
-style_root = "red bold"
+style_user = "fg:user"
+style_root = "fg:error"
 format = "[$user]($style)"
 show_always = true
 
 [hostname]
 ssh_only = false
-format = "@[$hostname]($style) "
+format = "[@$hostname]($style) "
 trim_at = "."
-style = "cyan"
+style = "fg:host"
 
 [python]
-disabled = false
-symbol = " "
+disabled = true
 
 [java]
-symbol = " "
-style = "yellow"
+disabled = true
 
 [nodejs]
 disabled = true
@@ -26,40 +44,40 @@ disabled = true
 disabled = true
 
 [directory]
-style = "yellow"
+style = "fg:path"
 truncation_length = 4
 truncation_symbol = "…/"
 format = "[$path]($style)[$read_only]($read_only_style) "
 
 [git_branch]
-symbol = ""
-style = "purple bold"
+symbol = "on "
+style = "fg:branch"
 format = "[$symbol$branch]($style)"
 
 [git_status]
 disabled = false
-format = ' ([$all_status$ahead_behind]($style) )'
-style = "red bold"
-staged = "[+](green) "
-modified = "[!](red) "
-untracked = "[?](yellow) "
-deleted = "[✘](red) "
-renamed = "[»](yellow) "
-conflicted = "[=](red bold) "
-stashed = "[$](cyan) "
+format = ' [$all_status$ahead_behind]($style)'
+style = "fg:status"
+staged = "[+ ](fg:success)"
+modified = "[! ](fg:status)"
+untracked = "[? ](fg:muted)"
+deleted = "[✘ ](fg:error)"
+renamed = "[» ](fg:branch)"
+conflicted = "[= ](fg:error)"
+stashed = "[$ ](fg:host)"
 ahead = "⇡"
 behind = "⇣"
 diverged = "⇕"
 up_to_date = ""
 
 [conda]
-disabled = false
+disabled = true
 ignore_base = false
-style = "#78E08F bold"
+style = "fg:success"
 symbol = ""
 format = '[\($symbol$environment\)]($style) '
 
 [character]
-success_symbol = "[❯](white bold)"
-error_symbol = "[❯](red bold)"
-vimcmd_symbol = "[❮](green bold)"
+success_symbol = "[❯](fg:success)"
+error_symbol = "[❯](fg:error)"
+vimcmd_symbol = "[❮](fg:branch)"

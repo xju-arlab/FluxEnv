@@ -241,6 +241,10 @@ ln -s "$FLUXENV_TEST_MOCK_DRIVER" "$FLUXENV_TEST_ROOT/pnpm/node"
 assert_contains "$FLUXENV_TEST_ROOT/user/.zshrc" EXISTING_RC
 assert_contains "$FLUXENV_TEST_ROOT/user/.zprofile" EXISTING_PROFILE
 assert_contains "$FLUXENV_TEST_ROOT/user/.vimrc" 'set ignorecase'
+assert_contains "$FLUXENV_TEST_ROOT/config dir/starship-macos.toml" 'palette = "fluxenv_pro"'
+assert_contains "$FLUXENV_TEST_ROOT/config dir/starship-macos.toml" 'user = "#8FB8D8"'
+! grep -q 'yellow' "$FLUXENV_TEST_ROOT/config dir/starship-macos.toml" || fail 'Mac prompt still uses yellow'
+assert_contains "$FLUXENV_TEST_ROOT/config dir/macos.zsh" 'ZSH_HIGHLIGHT_STYLES[default]'
 /bin/zsh -n "$FLUXENV_TEST_ROOT/config dir/macos.zsh" "$FLUXENV_TEST_ROOT/user/.zshrc"
 env ZDOTDIR="$FLUXENV_TEST_ROOT/user" HISTFILE="$FLUXENV_TEST_ROOT/history" \
     /bin/zsh -fic 'source "$FLUXENV_TEST_ROOT/user/.zshrc"; [[ $FLUXENV_MACOS_LOADED == 1 && $PROMPT == "fluxenv-test> " && $(command -v node) == "$FLUXENV_TEST_ROOT/nvm/versions/node/v24.0.0/bin/node" ]] && command -v gc >/dev/null' \
