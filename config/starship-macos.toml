@@ -3,7 +3,7 @@ add_newline = false
 command_timeout = 500
 
 [username]
-style_user = "bright-green bold"
+style_user = "bright-yellow bold"
 style_root = "bright-red bold"
 format = "[$user]($style)"
 show_always = true
@@ -27,15 +27,15 @@ disabled = true
 disabled = true
 
 [directory]
-style = "bright-white"
+style = "yellow"
 truncation_length = 4
 truncation_symbol = "…/"
 format = "[$path]($style)[$read_only]($read_only_style) "
 
 [git_branch]
-symbol = "on "
+symbol = ""
 style = "bright-purple bold"
-format = "[$symbol](bright-cyan)[$branch]($style)"
+format = "[$branch]($style)"
 
 [git_status]
 disabled = false

@@ -65,7 +65,7 @@ if [[ "\${TERM_PROGRAM:-}" == Apple_Terminal && "\${FLUXENV_TERMINAL_THEME:-flux
     printf '\033]4;0;rgb:1f/24/30\a'
     printf '\033]4;1;rgb:ff/6b/81\a'
     printf '\033]4;2;rgb:50/e3/a4\a'
-    printf '\033]4;3;rgb:f4/c9/5d\a'
+    printf '\033]4;3;rgb:ff/9f/43\a'
     printf '\033]4;4;rgb:6c/b6/ff\a'
     printf '\033]4;5;rgb:d8/b4/fe\a'
     printf '\033]4;6;rgb:56/d4/dd\a'
