@@ -43,6 +43,7 @@ managed_install_file() {
     local path="$1"
     local candidate="$2"
     local adopt_generated="${3:-0}"
+    local file_mode="${4:-600}"
     local resource="file:$path"
     STATE_CURRENT_RESOURCE="$resource"
     local installed=""
@@ -73,7 +74,7 @@ managed_install_file() {
     mkdir -p "$(dirname "$path")"
     local temporary=""
     temporary="$(mktemp "${path}.tmp.XXXXXX")"
-    if ! cp "$candidate" "$temporary" || ! chmod 600 "$temporary" || ! mv -f "$temporary" "$path"; then
+    if ! cp "$candidate" "$temporary" || ! chmod "$file_mode" "$temporary" || ! mv -f "$temporary" "$path"; then
         rm -f "$temporary"
         die "无法更新配置: $path"
     fi

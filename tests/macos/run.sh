@@ -30,17 +30,27 @@ case "${0##*/}" in
     dscl) printf 'UserShell: /bin/zsh\n' ;;
     curl)
         printf 'curl %s\n' "$*" >> "$FLUXENV_TEST_ROOT/mutations"
-        [ "${FLUXENV_TEST_BOOTSTRAP:-0}" -eq 1 ] || exit 1
+        request="$*"
         output=""
         while [ "$#" -gt 0 ]; do
             if [ "$1" = -o ]; then output="$2"; shift 2; else shift; fi
         done
-        cat > "$output" <<'INSTALLER'
+        if [[ "$request" == *nvm-sh/nvm* ]]; then
+            cat > "$output" <<'INSTALLER'
+#!/bin/bash
+set -eu
+mkdir -p "$NVM_DIR"
+cp "$FLUXENV_TEST_REPO/tests/helpers/nvm.sh" "$NVM_DIR/nvm.sh"
+INSTALLER
+        else
+            [ "${FLUXENV_TEST_BOOTSTRAP:-0}" -eq 1 ] || exit 1
+            cat > "$output" <<'INSTALLER'
 #!/bin/bash
 set -eu
 [ "${NONINTERACTIVE:-}" = 1 ]
 ln -s "$FLUXENV_TEST_MOCK_DRIVER" "$FLUXENV_TEST_ROOT/brew prefix/bin/brew"
 INSTALLER
+        fi
         ;;
     chsh) printf 'unexpected %s\n' "$*" >> "$FLUXENV_TEST_ROOT/mutations"; exit 1 ;;
     sudo)
@@ -99,6 +109,35 @@ INSTALLER
                 esac ;;
             *) exit 1 ;;
         esac ;;
+    node)
+        case "$1" in
+            -p) printf '24\n' ;;
+            --version) printf 'v24.20.0\n' ;;
+            *) exit 1 ;;
+        esac ;;
+    corepack)
+        if [ "$1" = --version ]; then printf '0.36.0\n'; exit 0; fi
+        printf 'corepack %s\n' "$*" >> "$FLUXENV_TEST_ROOT/mutations"
+        case "$1" in
+            enable) ln -sf "$FLUXENV_TEST_MOCK_DRIVER" "${0%/*}/pnpm" ;;
+            install|prepare) touch "$NVM_DIR/pnpm-installed" ;;
+            *) exit 1 ;;
+        esac ;;
+    npm) [ "$1" = --version ] && printf '10.0.0\n' ;;
+    pnpm)
+        case "$1" in
+            --version) [ -f "$NVM_DIR/pnpm-installed" ] && printf '10.0.0\n' ;;
+            add)
+                printf 'pnpm %s\n' "$*" >> "$FLUXENV_TEST_ROOT/mutations"
+                [ "${FLUXENV_TEST_FAIL_GC:-0}" = 0 ] || exit 9
+                mkdir -p "$PNPM_HOME"; ln -sf "$FLUXENV_TEST_MOCK_DRIVER" "$PNPM_HOME/gc" ;;
+            *) exit 1 ;;
+        esac ;;
+    gc)
+        case "$*" in
+            version|--version|'auth login --help') printf 'gc test\n' ;;
+            *) printf 'unexpected gc %s\n' "$*" >> "$FLUXENV_TEST_ROOT/mutations"; exit 1 ;;
+        esac ;;
     hf)
         case "$1" in
             version) cat "$FLUXENV_TEST_ROOT/hf-version" ;;
@@ -139,6 +178,7 @@ run_fluxenv() { /bin/bash "$ROOT_DIR/scripts/fluxenv" --config "$FLUXENV_TEST_RO
 new_case() {
     export FLUXENV_TEST_ROOT="$test_root/$1"
     unset FLUXENV_TEST_OS FLUXENV_TEST_ARCH FLUXENV_TEST_UID FLUXENV_TEST_NO_CLT FLUXENV_TEST_FAIL_NAME_KEY FLUXENV_TEST_FAIL_BREW FLUXENV_TEST_FAIL_HF FLUXENV_TEST_BOOTSTRAP FLUXENV_TEST_INSTALL_HOMEBREW FLUXENV_TEST_DRY_RUN
+    unset FLUXENV_TEST_FAIL_NODE FLUXENV_TEST_FAIL_GC
     mkdir -p "$FLUXENV_TEST_ROOT/names" "$FLUXENV_TEST_ROOT/brew prefix/bin" "$FLUXENV_TEST_ROOT/user"
     printf 'Old Mac' > "$FLUXENV_TEST_ROOT/names/ComputerName"
     printf 'old-mac' > "$FLUXENV_TEST_ROOT/names/LocalHostName"
@@ -153,6 +193,8 @@ new_case() {
         printf 'MACOS_STATE_DIR=%q\n' "$FLUXENV_TEST_ROOT/state"
         printf 'MACOS_ZDOTDIR=%q\n' "$FLUXENV_TEST_ROOT/user"
         printf 'MACOS_VIMRC=%q\n' "$FLUXENV_TEST_ROOT/user/.vimrc"
+        printf 'NVM_DIR=%q\n' "$FLUXENV_TEST_ROOT/nvm"
+        printf 'PNPM_HOME=%q\n' "$FLUXENV_TEST_ROOT/pnpm"
         printf 'ENABLE_VIM=0\nCHANGE_DEFAULT_SHELL=0\n'
     } > "$FLUXENV_TEST_ROOT/config.env"
 }
@@ -188,13 +230,20 @@ printf 'set ignorecase\n' > "$FLUXENV_TEST_ROOT/user/.vimrc"
 run_fluxenv --with-vim --non-interactive || { cat "$FLUXENV_TEST_ROOT/output"; fail install; }
 assert_contains "$FLUXENV_TEST_ROOT/mutations" 'brew install wget jq git autojump universal-ctags starship zsh-autosuggestions zsh-syntax-highlighting vim astyle'
 assert_contains "$FLUXENV_TEST_ROOT/mutations" 'uv tool install huggingface_hub>=1.20'
+assert_contains "$FLUXENV_TEST_ROOT/mutations" 'nvm install 24'
+assert_contains "$FLUXENV_TEST_ROOT/mutations" 'nvm alias default 24'
+assert_contains "$FLUXENV_TEST_ROOT/mutations" 'corepack enable pnpm'
+assert_contains "$FLUXENV_TEST_ROOT/mutations" 'corepack install --global pnpm@latest'
+assert_contains "$FLUXENV_TEST_ROOT/mutations" 'pnpm add --global atomgit-cli@latest'
+ln -s "$FLUXENV_TEST_MOCK_DRIVER" "$FLUXENV_TEST_ROOT/brew prefix/bin/node"
+ln -s "$FLUXENV_TEST_MOCK_DRIVER" "$FLUXENV_TEST_ROOT/pnpm/node"
 ! grep -q sudo "$FLUXENV_TEST_ROOT/mutations" || fail 'non-interactive run renamed device'
 assert_contains "$FLUXENV_TEST_ROOT/user/.zshrc" EXISTING_RC
 assert_contains "$FLUXENV_TEST_ROOT/user/.zprofile" EXISTING_PROFILE
 assert_contains "$FLUXENV_TEST_ROOT/user/.vimrc" 'set ignorecase'
 /bin/zsh -n "$FLUXENV_TEST_ROOT/config dir/macos.zsh" "$FLUXENV_TEST_ROOT/user/.zshrc"
 env ZDOTDIR="$FLUXENV_TEST_ROOT/user" HISTFILE="$FLUXENV_TEST_ROOT/history" \
-    /bin/zsh -fic 'source "$FLUXENV_TEST_ROOT/config dir/macos.zsh"; [[ $FLUXENV_MACOS_LOADED == 1 && $PROMPT == "fluxenv-test> " ]]' \
+    /bin/zsh -fic 'source "$FLUXENV_TEST_ROOT/user/.zshrc"; [[ $FLUXENV_MACOS_LOADED == 1 && $PROMPT == "fluxenv-test> " && $(command -v node) == "$FLUXENV_TEST_ROOT/nvm/versions/node/v24.0.0/bin/node" ]] && command -v gc >/dev/null' \
     > "$FLUXENV_TEST_ROOT/zsh-output" 2>&1 || { cat "$FLUXENV_TEST_ROOT/zsh-output"; fail 'zsh startup'; }
 /usr/bin/vim -Nu "$FLUXENV_TEST_ROOT/user/.vimrc" -n -i NONE -es \
     '+if &tabstop != 4 || &clipboard !=# "unnamed" | cquit | endif' +qall || fail 'vim config'
@@ -252,6 +301,40 @@ run_fluxenv --non-interactive || fail 'missing core executable repair'
 assert_contains "$FLUXENV_TEST_ROOT/mutations" 'brew reinstall uv gh'
 [ -x "$FLUXENV_TEST_ROOT/brew prefix/bin/uv" ] && [ -x "$FLUXENV_TEST_ROOT/brew prefix/bin/gh" ] || fail 'core executable not restored'
 printf 'PASS: Homebrew receipts with missing uv/gh executables trigger targeted repair\n'
+
+rm "$FLUXENV_TEST_ROOT/pnpm/gc"
+: > "$FLUXENV_TEST_ROOT/mutations"
+run_fluxenv --non-interactive || fail 'gc repair'
+assert_contains "$FLUXENV_TEST_ROOT/mutations" 'pnpm add --global atomgit-cli@latest'
+! grep -Eq '^(nvm|corepack|curl)' "$FLUXENV_TEST_ROOT/mutations" || fail 'gc repair reinstalled toolchain'
+printf 'PASS: Node 24/default and Corepack pnpm install once; missing gc repaired alone\n'
+
+new_case gc_failure
+export FLUXENV_TEST_FAIL_GC=1
+if run_fluxenv --non-interactive; then fail 'gc failure accepted'; fi
+[ ! -f "$FLUXENV_TEST_ROOT/state/initialized" ] || fail 'gc failure marked complete'
+unset FLUXENV_TEST_FAIL_GC
+: > "$FLUXENV_TEST_ROOT/mutations"
+run_fluxenv --non-interactive || fail 'gc retry'
+assert_contains "$FLUXENV_TEST_ROOT/mutations" 'pnpm add --global atomgit-cli@latest'
+! grep -Eq '^(nvm|corepack|curl)' "$FLUXENV_TEST_ROOT/mutations" || fail 'gc retry reinstalled successful toolchain'
+printf 'PASS: failed gc install resumes using the completed Node/pnpm environment\n'
+
+new_case node_failure
+export FLUXENV_TEST_FAIL_NODE=1
+if run_fluxenv --non-interactive; then fail 'Node install failure accepted'; fi
+[ ! -f "$FLUXENV_TEST_ROOT/state/initialized" ] || fail 'Node failure marked complete'
+[ -s "$FLUXENV_TEST_ROOT/nvm/nvm.sh" ] || fail 'completed nvm installation lost'
+unset FLUXENV_TEST_FAIL_NODE
+: > "$FLUXENV_TEST_ROOT/mutations"
+run_fluxenv --non-interactive || fail 'Node retry'
+! grep -q '^curl' "$FLUXENV_TEST_ROOT/mutations" || fail 'Node retry downloaded nvm again'
+printf '22\n' > "$FLUXENV_TEST_ROOT/nvm/alias/default"
+: > "$FLUXENV_TEST_ROOT/mutations"
+run_fluxenv --non-interactive || fail 'default Node repair'
+assert_contains "$FLUXENV_TEST_ROOT/mutations" 'nvm alias default 24'
+! grep -Eq '^(nvm install|curl|pnpm add)' "$FLUXENV_TEST_ROOT/mutations" || fail 'default repair reinstalled tools'
+printf 'PASS: Node failure resumes existing nvm; changed default repaired without reinstall\n'
 
 new_case old_hf
 mkdir -p "$FLUXENV_TEST_ROOT/tools/bin"

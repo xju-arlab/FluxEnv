@@ -1,12 +1,13 @@
 # 增量初始化、历史与用户工具
 
-`scripts/fluxenv` 的 macOS、normal、standard、autodl 流程共用 `lib/state.sh`、`lib/managed.sh` 和 `lib/user_tools.sh`。先建立状态和配置复用规则，再由各平台安装缺失的工具。独立的代理、VPN、新用户等辅助脚本不属于这个初始化流程。
+`scripts/fluxenv` 的 macOS、normal、standard、autodl 流程共用 `lib/state.sh`、`lib/managed.sh`、`lib/user_tools.sh` 和 `lib/node_tools.sh`。先建立状态和配置复用规则，再由各平台安装缺失的工具。独立的代理、VPN、新用户等辅助脚本不属于这个初始化流程。
 
 ## 重复运行
 
 第一次运行也会检测当前安装状态，不要求设备为空。完成后保存成功标记，再次运行显示“当前设备已完成过初始化”，随后继续检测实际环境：
 
 - 已安装的软件包、可运行的 uv / gh 和支持设备码登录的 hf 会复用；不按历史记录直接跳过实际检测。
+- nvm 管理的 Node.js 24、默认版本、Corepack / pnpm 和 gc 均检测实际可用性；只补装缺失部分。重复运行不会追随 `latest` 强制升级，默认版本被改动时恢复为 24。
 - 缺失的软件包、hf 或生成配置会单独补齐。Linux 的全量系统升级只在首次初始化执行，成功后保存检查点；后续阶段失败不会导致下次重复升级。
 - 相同内容的配置不重写、不重复插入托管块、不新增备份。模板更新仅替换未被手动修改的受管文件；有本地修改时保留并提示。托管块之外的个人设置保持原样。
 - 没有历史的旧配置按现有文件接入；内容不同的生成文件保留，必要的工具 PATH 通过独立托管块补齐。
@@ -52,7 +53,9 @@ sudo ./scripts/fluxenv --profile normal --dry-run
 
 ## uv、Hugging Face 和 GitHub CLI
 
-Mac 通过 Homebrew 安装 uv / gh，Linux 优先复用 uv，再尝试离线安装器或 Astral 官方安装器；gh 使用发行版的 apt 软件包。Linux 默认 `ALLOW_ONLINE_FETCH=1`，已有或离线资源优先；设为 `0` 且缺少可用 uv 时会明确失败，hf 安装也会限制为 uv 本地缓存。这个开关不禁止 apt 本身获取缺失的软件包。
+Mac 通过 Homebrew 安装 uv / gh，Linux 优先复用 uv，再尝试离线安装器或 Astral 官方安装器；gh 使用 apt。Ubuntu 20.04 在安装 gh 前自动创建 `/etc/apt/keyrings/githubcli-archive-keyring.gpg`（可供 apt 读取），并写入带当前 dpkg 架构和 `signed-by` 的 `/etc/apt/sources.list.d/github-cli.list`，使用 `https://cli.github.com/packages stable main`。重复运行复用文件，缺失 keyring 时补齐；已有源中的本地修改会保留并要求检查。`GH_APT_REPOSITORY=always` 可在其他 Ubuntu / Debian 上使用官方源，`never` 可关闭此步骤。
+
+Linux 默认 `ALLOW_ONLINE_FETCH=1`，已有或离线资源优先；设为 `0` 且缺少可用 uv 时会明确失败，hf 安装也会限制为 uv 本地缓存。这个开关也禁止新下载 nvm / Node / pnpm / gc，但不禁止 apt 本身获取缺失的软件包或所需的官方 keyring。
 
 安装 hf 使用官方 `huggingface_hub` 包；PyPI 上的 `huggingface` 不是提供这个 CLI 的包。命令为：
 
@@ -77,6 +80,46 @@ gh --version
 
 安装和登录依据：[Hugging Face CLI 官方说明](https://huggingface.co/docs/huggingface_hub/en/guides/cli#hf-auth-login)、[1.20 浏览器登录发布说明](https://github.com/huggingface/huggingface_hub/releases/tag/v1.20.0)、[uv 工具管理](https://docs.astral.sh/uv/guides/tools/)、[GitHub CLI 登录](https://cli.github.com/manual/gh_auth_login)。
 
+## nvm、Node.js 24、Corepack / pnpm 和 GitCode CLI
+
+两端使用目标用户的 nvm 安装 Node，默认固定主版本 24：
+
+```bash
+nvm install -b 24
+nvm alias default 24
+nvm use 24
+corepack enable pnpm
+corepack install --global pnpm@latest
+pnpm add --global atomgit-cli@latest
+```
+
+nvm 缺失时使用 `nvm-sh/nvm` 的 0.39.7 官方安装器。安装器不自行改写启动文件，FluxEnv 通过受管 zsh 块加载 nvm、使用默认 Node 和设置 pnpm 命令路径，同时兼容 pnpm 旧版根目录和新版 `bin` 子目录。Node 只下载官方二进制；已有符合主版本的安装直接复用。Corepack 缺失时用当前 nvm Node 的 npm 安装；旧版本 Corepack 的安装命令或签名验证不兼容时，尝试 `prepare`，必要时更新 Corepack 后重试。
+
+GitCode CLI 项目已更名为 AtomGit CLI，提供 `gc` / `gitcode` 命令，其社区维护的 npm 包名为 `atomgit-cli`。FluxEnv 使用 pnpm 安装这个包，并验证 `gc version` 和 `gc auth login --help`。安装成功后，在新终端中执行：
+
+```bash
+node -v                        # v24.x
+npm -v
+pnpm -v
+gc version
+gc auth login
+gh auth login
+pnpm exec vite --host 0.0.0.0 --port 8888   # 在已有 Vite 项目中使用
+```
+
+gc 和 gh 的账号登录由用户执行。FluxEnv 只安装和验证命令，不替账号授权。失败后可以用原命令重跑：nvm / Node / pnpm 已成功时直接复用，例如 gc 下载失败不会导致整套工具重新安装。
+
+| 配置项 | 默认值 |
+| --- | --- |
+| `NVM_VERSION` | `0.39.7`；新安装的 nvm 版本 |
+| `NODE_VERSION` | `24`；指定 24 或更高的主版本 |
+| `PNPM_VERSION` | `latest`；首次安装版本，已有可用版本复用；可指定版本号 |
+| `GITCODE_CLI_SPEC` | `atomgit-cli@latest`；首次安装包及版本 |
+| `NVM_DIR` | 目标用户的 `~/.nvm` |
+| `PNPM_HOME` | 目标用户的 `~/.local/share/pnpm` |
+
+安装依据：[nvm 官方项目](https://github.com/nvm-sh/nvm)、[Corepack 官方项目](https://github.com/nodejs/corepack)、[pnpm 全局命令目录](https://pnpm.io/cli/bin)、[AtomGit CLI 项目说明](https://github.com/atomgit-cli/cli)、[GitHub CLI 官方 Linux 安装说明](https://github.com/cli/cli/blob/trunk/docs/install_linux.md)。
+
 ## 验证
 
 ```bash
@@ -84,4 +127,4 @@ bash tests/incremental/run.sh
 bash tests/macos/run.sh
 ```
 
-这些检查使用临时目录和模拟系统工具，包含配置复用、失败恢复、锁、Linux 入口和 Mac 设备码交互，不改变真实设备。环境与实测范围见 [`verification/incremental-2026-10-10.md`](verification/incremental-2026-10-10.md)。
+这些检查使用临时目录和模拟系统工具，包含配置复用、失败恢复、锁、Linux 入口和 Mac 设备码交互，不改变真实设备。环境与实测范围见 [`verification/incremental-2026-10-10.md`](verification/incremental-2026-10-10.md) 和 [`verification/node-gitcode-2026-10-10.md`](verification/node-gitcode-2026-10-10.md)。

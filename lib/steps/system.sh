@@ -2,6 +2,78 @@
 
 APT_BACKUP_DIR="/var/backups/fluxenv/apt"
 
+ubuntu_version_is_20_04() {
+    local os_release="${GH_OS_RELEASE_FILE:-/etc/os-release}"
+    [ -f "$os_release" ] || return 1
+    awk -F= '
+        $1 == "ID" { id=$2 }
+        $1 == "VERSION_ID" { version=$2 }
+        END { gsub(/"/, "", id); gsub(/"/, "", version); exit !(id == "ubuntu" && version == "20.04") }
+    ' "$os_release"
+}
+
+ensure_github_cli_repository() {
+    STATE_CURRENT_RESOURCE=system/github-cli-repository
+    local mode="${GH_APT_REPOSITORY:-auto}"
+    local apt_dir="${GH_APT_DIR:-/etc/apt}"
+    local keyring="$apt_dir/keyrings/githubcli-archive-keyring.gpg"
+    local source_file="$apt_dir/sources.list.d/github-cli.list"
+    local candidate=""
+    local architecture=""
+    case "$mode" in
+        never|0|false) return 0 ;;
+        auto) ubuntu_version_is_20_04 || return 0 ;;
+        always|1|true) ;;
+        *) die "GH_APT_REPOSITORY 必须是 auto、always 或 never" ;;
+    esac
+    [[ "$apt_dir" = /* ]] || die "GH_APT_DIR 必须是绝对路径"
+    if ! command_exists curl; then
+        linux_install_packages curl ca-certificates
+    fi
+    managed_require_file "$keyring"
+    managed_require_file "$source_file"
+    if [ ! -d "$apt_dir/keyrings" ]; then
+        run_cmd "创建 GitHub CLI keyring 目录" install -d -m 755 "$apt_dir/keyrings"
+    fi
+    if [ "$DRY_RUN" -eq 1 ]; then
+        progress "[dry-run] 下载 https://cli.github.com/packages/githubcli-archive-keyring.gpg 到 $keyring"
+        progress "[dry-run] 写入 $source_file（使用 dpkg 架构和 signed-by）"
+        return 0
+    fi
+    if [ ! -s "$keyring" ]; then
+        local temporary=""
+        temporary="$(mktemp "${TMPDIR:-/tmp}/fluxenv-gh-keyring.XXXXXX")"
+        if ! run_cmd "下载 GitHub CLI 官方 keyring" curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg -o "$temporary" ||
+            [ ! -s "$temporary" ]; then
+            rm -f "$temporary"
+            die "GitHub CLI keyring 下载失败或内容为空"
+        fi
+        if ! run_cmd "安装 GitHub CLI keyring" install -m 0644 "$temporary" "$keyring"; then
+            rm -f "$temporary"
+            die "GitHub CLI keyring 无法保存"
+        fi
+        rm -f "$temporary"
+        state_record system/gh-keyring applied "$(state_file_signature "$keyring")"
+    else
+        progress "复用 GitHub CLI keyring"
+        if [ "$(ls -l "$keyring" | awk '{print substr($1, 5, 1) substr($1, 8, 1)}')" != rr ]; then
+            run_cmd "允许 apt 读取 GitHub CLI keyring" chmod go+r "$keyring"
+        fi
+        state_record system/gh-keyring reused "$(state_file_signature "$keyring")"
+    fi
+    architecture="$(dpkg --print-architecture)" || die "无法读取 dpkg 架构"
+    [[ "$architecture" =~ ^[a-zA-Z0-9_-]+$ ]] || die "无效的 dpkg 架构: $architecture"
+    candidate="$(mktemp "${TMPDIR:-/tmp}/fluxenv-gh-source.XXXXXX")"
+    printf 'deb [arch=%s signed-by=%s] https://cli.github.com/packages stable main\n' \
+        "$architecture" "$keyring" > "$candidate"
+    managed_install_file "$source_file" "$candidate" 0 644
+    if ! cmp -s "$source_file" "$candidate"; then
+        rm -f "$candidate"
+        die "已有 GitHub CLI 源包含本地修改，请检查: $source_file"
+    fi
+    rm -f "$candidate"
+}
+
 update_hosts_file() {
     local resolved_ip=""
     if command_exists ip; then
@@ -94,6 +166,7 @@ step_packages() {
     fi
     local packages=()
     read -r -a packages <<< "$BASE_PACKAGES $EXTRA_PACKAGES gh"
+    ensure_github_cli_repository
     linux_install_packages "${packages[@]}"
     if command_exists locale-gen && ! locale -a | grep -qi '^en_US\.utf8$'; then
         run_cmd "生成 en_US.UTF-8 locale" locale-gen en_US.UTF-8

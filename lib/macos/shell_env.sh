@@ -108,13 +108,27 @@ step_macos_shell_env() {
     local quoted_brew=""
     local quoted_shell=""
     local quoted_tools=""
+    local quoted_nvm=""
+    local quoted_pnpm=""
     local body=""
     printf -v quoted_brew '%q' "$BREW_BIN"
     printf -v quoted_shell '%q' "$MACOS_CONFIG_DIR/macos.zsh"
     printf -v quoted_tools '%q' "$UV_TOOL_BIN"
+    printf -v quoted_nvm '%q' "$NVM_DIR"
+    printf -v quoted_pnpm '%q' "$PNPM_HOME"
     body="if [ -x $quoted_brew ]; then"$'\n'"    eval \"\$($quoted_brew shellenv)\""$'\n'"fi"
     macos_update_block "$MACOS_ZDOTDIR/.zprofile" '# >>> fluxenv macos >>>' '# <<< fluxenv macos <<<' "$body" zprofile
-    body="typeset -U path"$'\n'"path=($quoted_tools \$path)"$'\n'"[ ! -r $quoted_shell ] || source $quoted_shell"
+    body="$(cat <<EOF
+typeset -U path
+path=($quoted_tools \$path)
+[ ! -r $quoted_shell ] || source $quoted_shell
+export PNPM_HOME=$quoted_pnpm
+[[ ! -d \$PNPM_HOME ]] || path=("\$PNPM_HOME/bin" "\$PNPM_HOME" \$path)
+export NVM_DIR=$quoted_nvm
+[ ! -r "\$NVM_DIR/nvm.sh" ] || source "\$NVM_DIR/nvm.sh"
+nvm use --silent default >/dev/null 2>&1 || true
+EOF
+)"
     macos_update_block "$MACOS_ZDOTDIR/.zshrc" '# >>> fluxenv macos >>>' '# <<< fluxenv macos <<<' "$body" zshrc
     macos_configure_default_shell
 }

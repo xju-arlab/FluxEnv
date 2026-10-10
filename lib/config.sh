@@ -38,6 +38,13 @@ load_defaults() {
     FLUXENV_STATE_DIR="/var/lib/fluxenv"
     HF_LOGIN=ask
     HF_TOOL_SPEC="huggingface_hub>=1.20"
+    NVM_VERSION="0.39.7"
+    NODE_VERSION="24"
+    PNPM_VERSION="latest"
+    GITCODE_CLI_SPEC="atomgit-cli@latest"
+    NVM_DIR=""
+    PNPM_HOME=""
+    GH_APT_REPOSITORY=auto
 
     INIT_SYSTEM="unknown"
     CONTAINER_MODE=0

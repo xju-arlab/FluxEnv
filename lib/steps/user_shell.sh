@@ -421,15 +421,38 @@ configure_shell_env_for_user() {
     local quoted_bin=""
     printf -v quoted_bin '%q' "$tool_bin"
     local block="export PATH=$quoted_bin:\"\$PATH\""
+    local node_body='export PNPM_HOME="${PNPM_HOME:-$HOME/.local/share/pnpm}"
+typeset -U path
+[ -d "$PNPM_HOME" ] && path=("$PNPM_HOME/bin" "$PNPM_HOME" $path)
+export NVM_DIR="${NVM_DIR:-$HOME/.nvm}"
+[ -s "$NVM_DIR/nvm.sh" ] && . "$NVM_DIR/nvm.sh"
+nvm use --silent default >/dev/null 2>&1 || true'
+    if [ "$user_name" = "${TARGET_USER:-}" ] && [ -n "${NVM_DIR:-}" ]; then
+        local quoted_nvm=""
+        local quoted_pnpm=""
+        printf -v quoted_nvm '%q' "$NVM_DIR"
+        printf -v quoted_pnpm '%q' "$PNPM_HOME"
+        node_body="$(cat <<EOF
+export PNPM_HOME=$quoted_pnpm
+typeset -U path
+[ ! -d "\$PNPM_HOME" ] || path=("\$PNPM_HOME/bin" "\$PNPM_HOME" \$path)
+export NVM_DIR=$quoted_nvm
+[ ! -s "\$NVM_DIR/nvm.sh" ] || . "\$NVM_DIR/nvm.sh"
+nvm use --silent default >/dev/null 2>&1 || true
+EOF
+)"
+    fi
     candidate="$(mktemp "${TMPDIR:-/tmp}/fluxenv-linux-shell.XXXXXX")"
     write_zshrc_for_user "$user_home" "$candidate"
     printf '\n%s\n%s\n%s\n' '# >>> fluxenv tools >>>' "$block" '# <<< fluxenv tools <<<' >> "$candidate"
+    printf '\n%s\n%s\n%s\n' '# >>> fluxenv node >>>' "$node_body" '# <<< fluxenv node <<<' >> "$candidate"
     managed_install_file "$user_home/.zshrc" "$candidate"
     write_starship_config_for_user "$user_home" "$candidate"
     managed_install_file "$user_home/.config/starship.toml" "$candidate"
     rm -f "$candidate"
 
     managed_update_block "$user_home/.zshrc" '# >>> fluxenv tools >>>' '# <<< fluxenv tools <<<' "$block"
+    managed_update_block "$user_home/.zshrc" '# >>> fluxenv node >>>' '# <<< fluxenv node <<<' "$node_body"
     validate_starship_config_for_user "$user_home"
 
     if [ "$user_name" != "root" ] && [ "${DRY_RUN:-0}" -eq 0 ]; then

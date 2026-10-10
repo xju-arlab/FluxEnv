@@ -159,6 +159,7 @@ case "${0##*/}" in
         package="${@: -1}"
         grep -Fxq "$package" "$FLUXENV_TEST_ROOT/installed" || exit 1
         printf installed ;;
+    dpkg) [ "$1" = --print-architecture ] && echo amd64 ;;
     apt)
         printf 'apt %s\n' "$*" >> "$FLUXENV_TEST_ROOT/mutations"
         action="$1"; shift
@@ -168,6 +169,10 @@ case "${0##*/}" in
             install)
                 for package in "$@"; do
                     [[ "$package" != -* ]] || continue
+                    if [ "$package" = gh ] && [ -n "${GH_OS_RELEASE_FILE:-}" ] && grep -q '20.04' "$GH_OS_RELEASE_FILE"; then
+                        [ -s "$GH_APT_DIR/keyrings/githubcli-archive-keyring.gpg" ] &&
+                            grep -q 'https://cli.github.com/packages stable main' "$GH_APT_DIR/sources.list.d/github-cli.list" || exit 4
+                    fi
                     grep -Fxq "$package" "$FLUXENV_TEST_ROOT/installed" || printf '%s\n' "$package" >> "$FLUXENV_TEST_ROOT/installed"
                     [ "$package" != gh ] || ln -sf "$FLUXENV_TEST_DRIVER" "$FLUXENV_TEST_ROOT/bin/gh"
                 done ;;
@@ -199,14 +204,69 @@ case "${0##*/}" in
     starship) case "$1" in --version) echo 'starship test' ;; module) [ -s "$STARSHIP_CONFIG" ] ;; *) exit 1 ;; esac ;;
     hostname) [ "$#" = 0 ] && echo existing-host ;;
     locale) echo en_US.utf8 ;;
-    useradd|userdel|chpasswd|chsh|sudo|curl|git|chown)
+    curl)
+        request="$*"
+        if [[ "$request" == *githubcli-archive-keyring.gpg* ]]; then
+            printf 'curl gh-keyring\n' >> "$FLUXENV_TEST_ROOT/mutations"
+            [ "${FLUXENV_TEST_FAIL_KEYRING:-0}" = 0 ] || exit 5
+            output=""
+            while [ "$#" -gt 0 ]; do
+                if [ "$1" = -o ]; then output="$2"; shift 2; else shift; fi
+            done
+            printf 'mock gpg keyring\n' > "$output"
+        elif [[ "$request" == *nvm-sh/nvm* ]]; then
+            output=""
+            while [ "$#" -gt 0 ]; do
+                if [ "$1" = -o ]; then output="$2"; shift 2; else shift; fi
+            done
+            cat > "$output" <<'INSTALLER'
+#!/bin/bash
+set -eu
+mkdir -p "$NVM_DIR"
+cp "$FLUXENV_TEST_REPO/tests/helpers/nvm.sh" "$NVM_DIR/nvm.sh"
+INSTALLER
+        else
+            printf 'FORBIDDEN curl %s\n' "$*" >> "$FLUXENV_TEST_ROOT/mutations"
+            exit 1
+        fi ;;
+    node)
+        case "$1" in
+            -p) echo 24 ;;
+            --version) echo v24.20.0 ;;
+            *) exit 1 ;;
+        esac ;;
+    corepack)
+        if [ "$1" = --version ]; then echo 0.36.0; exit 0; fi
+        printf 'corepack %s\n' "$*" >> "$FLUXENV_TEST_ROOT/mutations"
+        case "$1" in
+            enable) ln -sf "$FLUXENV_TEST_DRIVER" "${0%/*}/pnpm" ;;
+            install|prepare) touch "$NVM_DIR/pnpm-installed" ;;
+            *) exit 1 ;;
+        esac ;;
+    npm) [ "$1" = --version ] && echo 10.0.0 ;;
+    pnpm)
+        case "$1" in
+            --version) [ -f "$NVM_DIR/pnpm-installed" ] && echo 12.11.2 ;;
+            add)
+                printf 'pnpm %s\n' "$*" >> "$FLUXENV_TEST_ROOT/mutations"
+                [ "${FLUXENV_TEST_FAIL_GC:-0}" = 0 ] || exit 9
+                case ":$PATH:" in *":$PNPM_HOME/bin:"*) ;; *) exit 10 ;; esac
+                mkdir -p "$PNPM_HOME/bin"; ln -sf "$FLUXENV_TEST_DRIVER" "$PNPM_HOME/bin/gc" ;;
+            *) exit 1 ;;
+        esac ;;
+    gc)
+        case "$*" in
+            version|--version|'auth login --help') echo 'gc test' ;;
+            *) printf 'FORBIDDEN gc %s\n' "$*" >> "$FLUXENV_TEST_ROOT/mutations"; exit 1 ;;
+        esac ;;
+    useradd|userdel|chpasswd|chsh|sudo|git|chown)
         printf 'FORBIDDEN %s %s\n' "${0##*/}" "$*" >> "$FLUXENV_TEST_ROOT/mutations"; exit 1 ;;
     *) exit 1 ;;
 esac
 MOCK
 chmod +x "$test_root/bin/driver"
 export FLUXENV_TEST_DRIVER="$test_root/bin/driver"
-for tool in uname whoami id getent dpkg-query apt runuser hostname locale useradd userdel chpasswd chsh sudo curl git chown; do
+for tool in uname whoami id getent dpkg-query dpkg apt runuser hostname locale useradd userdel chpasswd chsh sudo curl git chown; do
     ln -s driver "$test_root/bin/$tool"
 done
 
@@ -220,6 +280,8 @@ new_linux_case() {
     done
     printf 'curl\n' > "$FLUXENV_TEST_ROOT/installed"
     unset FLUXENV_TEST_FAIL_HF FLUXENV_TEST_FAIL_UPGRADE
+    unset FLUXENV_TEST_FAIL_NODE FLUXENV_TEST_FAIL_GC
+    unset FLUXENV_TEST_FAIL_KEYRING
     {
         printf 'PROFILE_STEPS="preflight packages uv hostname user user_tools shell_env vim hf_auth finalize"\n'
         printf 'FLUXENV_STATE_DIR=%q\n' "$FLUXENV_TEST_ROOT/state"
@@ -238,6 +300,10 @@ new_linux_case linux
 run_linux --non-interactive || { cat "$FLUXENV_TEST_ROOT/output"; fail 'Linux first bootstrap'; }
 assert_contains "$FLUXENV_TEST_ROOT/mutations" 'apt install -y --no-install-recommends jq gh'
 assert_contains "$FLUXENV_TEST_ROOT/mutations" 'uv tool install huggingface_hub>=1.20'
+assert_contains "$FLUXENV_TEST_ROOT/mutations" 'nvm install 24'
+assert_contains "$FLUXENV_TEST_ROOT/mutations" 'nvm alias default 24'
+assert_contains "$FLUXENV_TEST_ROOT/mutations" 'corepack install --global pnpm@latest'
+assert_contains "$FLUXENV_TEST_ROOT/mutations" 'pnpm add --global atomgit-cli@latest'
 assert_contains "$FLUXENV_TEST_ROOT/user-context" "runuser $FLUXENV_TEST_USER"
 ! grep -q FORBIDDEN "$FLUXENV_TEST_ROOT/mutations" || fail 'unexpected privileged mutation'
 /bin/zsh -n "$FLUXENV_TEST_ROOT/user/.zshrc" || fail 'Linux zsh syntax'
@@ -266,6 +332,32 @@ rm "$FLUXENV_TEST_ROOT/bin/gh"
 run_linux --non-interactive || fail 'Linux gh executable repair'
 assert_contains "$FLUXENV_TEST_ROOT/mutations" 'apt install --reinstall -y --no-install-recommends gh'
 printf 'PASS: Linux entry, current user context, incremental packages/tools, config preservation and shared profile history\n'
+
+new_linux_case ubuntu20
+printf 'ID=ubuntu\nVERSION_ID="20.04"\n' > "$FLUXENV_TEST_ROOT/os-release"
+{
+    printf 'GH_OS_RELEASE_FILE=%q\n' "$FLUXENV_TEST_ROOT/os-release"
+    printf 'GH_APT_DIR=%q\n' "$FLUXENV_TEST_ROOT/apt"
+} >> "$FLUXENV_TEST_ROOT/config.env"
+run_linux --non-interactive || { cat "$FLUXENV_TEST_ROOT/output"; fail 'Ubuntu 20.04 keyring/source'; }
+assert_contains "$FLUXENV_TEST_ROOT/apt/sources.list.d/github-cli.list" "deb [arch=amd64 signed-by=$FLUXENV_TEST_ROOT/apt/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main"
+assert_contains "$FLUXENV_TEST_ROOT/mutations" 'curl gh-keyring'
+chmod 600 "$FLUXENV_TEST_ROOT/apt/keyrings/githubcli-archive-keyring.gpg"
+cp "$FLUXENV_TEST_ROOT/mutations" "$FLUXENV_TEST_ROOT/first-mutations"
+run_linux --non-interactive || fail 'Ubuntu 20.04 repeat'
+cmp "$FLUXENV_TEST_ROOT/first-mutations" "$FLUXENV_TEST_ROOT/mutations" || fail 'Ubuntu repository repeated download or install'
+python3 - "$FLUXENV_TEST_ROOT/apt" <<'PY'
+import os, stat, sys
+for file in ('keyrings/githubcli-archive-keyring.gpg', 'sources.list.d/github-cli.list'):
+    assert stat.S_IMODE(os.stat(os.path.join(sys.argv[1], file)).st_mode) == 0o644
+PY
+rm "$FLUXENV_TEST_ROOT/apt/keyrings/githubcli-archive-keyring.gpg"
+export FLUXENV_TEST_FAIL_KEYRING=1
+if run_linux --non-interactive; then fail 'keyring download failure accepted'; fi
+assert_contains "$FLUXENV_TEST_ROOT/state/history.tsv" failed
+unset FLUXENV_TEST_FAIL_KEYRING
+run_linux --non-interactive || fail 'keyring download retry'
+printf 'PASS: Ubuntu 20.04 official gh repository, readable keyring, reuse and download recovery\n'
 
 new_linux_case linux_failure
 export FLUXENV_TEST_FAIL_UPGRADE=1

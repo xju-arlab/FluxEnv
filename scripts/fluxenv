@@ -13,6 +13,7 @@ source "$ROOT_DIR/lib/config.sh"
 source "$ROOT_DIR/lib/state.sh"
 source "$ROOT_DIR/lib/managed.sh"
 source "$ROOT_DIR/lib/user_tools.sh"
+source "$ROOT_DIR/lib/node_tools.sh"
 
 for module in "$ROOT_DIR"/lib/steps/*.sh; do
     # shellcheck source=/dev/null
@@ -122,6 +123,7 @@ if [ -n "$show_state" ]; then
 fi
 [ -t 0 ] || INTERACTIVE=0
 validate_user_tools_config
+validate_javascript_tools_config
 UV_BIN=""
 HF_BIN=""
 UV_TOOL_BIN=""

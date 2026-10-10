@@ -24,6 +24,9 @@ macOS 无需运行 `scripts/fetch_resources.sh`。仓库内的 Starship 离线�
 | uv、Starship | Homebrew 同名 formula |
 | GitHub CLI（gh） | Homebrew `gh` |
 | Hugging Face CLI（hf） | 当前用户的 `uv tool install 'huggingface_hub>=1.20'` |
+| nvm / Node.js 24 | 官方 nvm 安装器和 `nvm install -b 24`，设置默认版本 24 |
+| pnpm | 当前 nvm Node 的 Corepack 启用和管理 |
+| GitCode CLI（gc） | 当前用户的 `pnpm add --global atomgit-cli@latest` |
 | zsh-autosuggestions、zsh-syntax-highlighting | Homebrew 安装并自动加载相同插件 |
 | zsh、curl、unzip、sudo、locale | 使用 macOS 自带工具 / 设置 |
 | gcc / g++ / make | Apple 命令行开发工具提供 Clang 和兼容命令；需要 GNU GCC 可配置 `MACOS_EXTRA_FORMULAE="gcc"` |
@@ -88,6 +91,9 @@ bash scripts/fluxenv --dry-run --with-vim --device-name "工作 Mac" --local-hos
 | `HF_LOGIN` | `ask`；交互可选浏览器设备码登录，`0` 跳过，`1` 请求终端授权 |
 | `HF_TOOL_SPEC` | `huggingface_hub>=1.20`；确保支持原生设备码登录 |
 | `FLUXENV_TOOL_BIN_DIR` | 可选；指定 uv 工具的可执行目录，自动加入 zsh PATH |
+| `NVM_VERSION` / `NODE_VERSION` | `0.39.7` / `24`；复用已有 nvm，安装并使用指定 Node 主版本 |
+| `PNPM_VERSION` / `GITCODE_CLI_SPEC` | `latest` / `atomgit-cli@latest`；首次安装版本，后续检测并复用 |
+| `NVM_DIR` / `PNPM_HOME` | `$HOME/.nvm` / `$HOME/.local/share/pnpm`；用户工具目录 |
 | `CHANGE_DEFAULT_SHELL` | `ask`；当前用户已使用 `/bin/zsh` 时跳过，否则可选择切换 |
 | `MACOS_EXTRA_FORMULAE` | 空；额外的 Homebrew formula，以空格分隔 |
 | `DEVICE_NAME`、`LOCAL_HOST_NAME` | 空；设备显示名和可选的 Bonjour / 主机名 |
@@ -126,6 +132,8 @@ bash scripts/fluxenv --non-interactive --skip-hf-login
 成功初始化后会显示已初始化并继续检查增量，补齐缺失工具、复用已有配置和登录。Vim 选择自动记忆，显式 `--with-vim` / `--without-vim` 可覆盖；需要再次交互改设备名时使用 `--rename-device`。
 
 Hugging Face 登录使用 `hf auth login` 自带的浏览器设备码流程，默认可跳过。设备码和令牌不写入 FluxEnv 历史。详细状态文件、失败恢复、Linux 对应行为和官方依据见 [`INCREMENTAL.md`](INCREMENTAL.md)。
+
+新终端自动加载 nvm 并使用默认 Node.js 24；也可在现有终端执行 `source ~/.zshrc`。`node -v` / `npm -v` / `pnpm -v` 用于检查工具。GitCode CLI 安装后自行执行 `gc auth login`，GitHub 使用 `gh auth login`。
 
 ## 验证
 

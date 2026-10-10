@@ -8,6 +8,7 @@ source "$ROOT_DIR/lib/core.sh"
 source "$ROOT_DIR/lib/state.sh"
 source "$ROOT_DIR/lib/managed.sh"
 source "$ROOT_DIR/lib/user_tools.sh"
+source "$ROOT_DIR/lib/node_tools.sh"
 for module in "$ROOT_DIR"/lib/macos/*.sh; do
     # shellcheck source=/dev/null
     source "$module"
@@ -146,9 +147,10 @@ state_begin
 step_macos_developer_tools
 step_macos_homebrew
 step_macos_packages
-stage "uv 工具 / Hugging Face CLI"
+stage "uv 工具 / Hugging Face CLI / Node.js"
 STATE_CURRENT_RESOURCE=tools/huggingface
 install_huggingface_tool
+install_javascript_tools
 step_macos_device_name
 step_macos_shell_env
 step_macos_vim

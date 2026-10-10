@@ -58,6 +58,7 @@ step_macos_preflight() {
     command_exists zsh || die "未找到 macOS 自带的 zsh"
     command_exists curl || die "未找到 curl"
     validate_user_tools_config
+    validate_javascript_tools_config
 
     local path=""
     for path in "$MACOS_CONFIG_DIR" "$MACOS_STATE_DIR" "$MACOS_ZDOTDIR" "$MACOS_VIMRC"; do
