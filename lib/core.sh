@@ -37,6 +37,12 @@ progress() {
     echo "  → $1"
 }
 
+print_shell_refresh_hint() {
+    local shell_rc="$1"
+    printf '  请在 zsh 终端执行以下命令刷新环境变量:\n'
+    printf '    source %q\n' "$shell_rc"
+}
+
 warn() {
     echo "${YELLOW}警告: $1${RESET}" >&2
 }

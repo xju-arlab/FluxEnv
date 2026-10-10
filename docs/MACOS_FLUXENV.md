@@ -133,7 +133,7 @@ bash scripts/fluxenv --non-interactive --skip-hf-login
 
 Hugging Face 登录使用 `hf auth login` 自带的浏览器设备码流程，默认可跳过。设备码和令牌不写入 FluxEnv 历史。详细状态文件、失败恢复、Linux 对应行为和官方依据见 [`INCREMENTAL.md`](INCREMENTAL.md)。
 
-新终端自动加载 nvm 并使用默认 Node.js 24；也可在现有终端执行 `source ~/.zshrc`。`node -v` / `npm -v` / `pnpm -v` 用于检查工具。GitCode CLI 安装后自行执行 `gc auth login`，GitHub 使用 `gh auth login`。
+新终端自动加载 nvm 并使用默认 Node.js 24；初始化完成时会输出对应启动文件的 `source` 命令（默认是 `~/.zshrc`），可直接复制到当前 zsh 终端刷新环境变量。配置 `MACOS_ZDOTDIR` 时使用该目录的 `.zshrc`。`node -v` / `npm -v` / `pnpm -v` 用于检查工具。GitCode CLI 安装后自行执行 `gc auth login`，GitHub 使用 `gh auth login`。
 
 ## 验证
 

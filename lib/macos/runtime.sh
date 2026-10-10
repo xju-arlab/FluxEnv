@@ -104,4 +104,5 @@ step_macos_finalize() {
     progress "新开终端，或执行 exec /bin/zsh -l"
     state_summary
     state_finish
+    print_shell_refresh_hint "$MACOS_ZDOTDIR/.zshrc"
 }

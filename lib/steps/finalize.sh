@@ -62,6 +62,7 @@ step_finalize() {
     echo "================================================================"
     state_finish
     state_summary
+    print_shell_refresh_hint "${TARGET_HOME:-$HOME}/.zshrc"
     # Final shell replacement does not run Bash's EXIT trap.
     state_exit 0
     enter_final_zsh
