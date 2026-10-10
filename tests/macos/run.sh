@@ -241,9 +241,10 @@ ln -s "$FLUXENV_TEST_MOCK_DRIVER" "$FLUXENV_TEST_ROOT/pnpm/node"
 assert_contains "$FLUXENV_TEST_ROOT/user/.zshrc" EXISTING_RC
 assert_contains "$FLUXENV_TEST_ROOT/user/.zprofile" EXISTING_PROFILE
 assert_contains "$FLUXENV_TEST_ROOT/user/.vimrc" 'set ignorecase'
-assert_contains "$FLUXENV_TEST_ROOT/config dir/starship-macos.toml" 'palette = "fluxenv_pro"'
-assert_contains "$FLUXENV_TEST_ROOT/config dir/starship-macos.toml" 'user = "#8FB8D8"'
-! grep -q 'yellow' "$FLUXENV_TEST_ROOT/config dir/starship-macos.toml" || fail 'Mac prompt still uses yellow'
+! grep -q 'palette = ' "$FLUXENV_TEST_ROOT/config dir/starship-macos.toml" || fail 'Mac prompt overrides Terminal palette'
+assert_contains "$FLUXENV_TEST_ROOT/config dir/starship-macos.toml" 'style_user = "bright-blue bold"'
+assert_contains "$FLUXENV_TEST_ROOT/config dir/macos.zsh" 'TERM_PROGRAM'
+assert_contains "$FLUXENV_TEST_ROOT/config dir/macos.zsh" '\033]4;3;rgb:f4/c9/5d'
 assert_contains "$FLUXENV_TEST_ROOT/config dir/macos.zsh" 'ZSH_HIGHLIGHT_STYLES[default]'
 /bin/zsh -n "$FLUXENV_TEST_ROOT/config dir/macos.zsh" "$FLUXENV_TEST_ROOT/user/.zshrc"
 env ZDOTDIR="$FLUXENV_TEST_ROOT/user" HISTFILE="$FLUXENV_TEST_ROOT/history" \

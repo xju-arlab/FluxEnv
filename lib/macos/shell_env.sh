@@ -58,21 +58,46 @@ if command -v starship >/dev/null 2>&1; then
 fi
 [[ ! -r \$_fluxenv_config/macos.local.zsh ]] || source "\$_fluxenv_config/macos.local.zsh"
 
+# Terminal.app does not reliably render Starship's 24-bit colors. Set its
+# ANSI palette for the current window, then let Starship use those color slots.
+# Set FLUXENV_TERMINAL_THEME=none in macos.local.zsh to keep the profile colors.
+if [[ "\${TERM_PROGRAM:-}" == Apple_Terminal && "\${FLUXENV_TERMINAL_THEME:-fluxenv_pro}" != none ]]; then
+    printf '\033]4;0;rgb:1f/24/30\a'
+    printf '\033]4;1;rgb:ff/6b/81\a'
+    printf '\033]4;2;rgb:50/e3/a4\a'
+    printf '\033]4;3;rgb:f4/c9/5d\a'
+    printf '\033]4;4;rgb:6c/b6/ff\a'
+    printf '\033]4;5;rgb:d8/b4/fe\a'
+    printf '\033]4;6;rgb:56/d4/dd\a'
+    printf '\033]4;7;rgb:d7/de/e9\a'
+    printf '\033]4;8;rgb:6b/72/80\a'
+    printf '\033]4;9;rgb:ff/85/85\a'
+    printf '\033]4;10;rgb:b8/f2/b0\a'
+    printf '\033]4;11;rgb:ff/d9/7d\a'
+    printf '\033]4;12;rgb:91/c8/ff\a'
+    printf '\033]4;13;rgb:e9/c6/ff\a'
+    printf '\033]4;14;rgb:7a/e8/ef\a'
+    printf '\033]4;15;rgb:f3/f6/fa\a'
+    printf '\033]10;rgb:f3/f6/fa\a'
+    printf '\033]11;rgb:20/23/2b\a'
+    printf '\033]12;rgb:7a/e8/ef\a'
+fi
+
 # Plugins run after the existing .zshrc and personal settings.
-typeset -g ZSH_AUTOSUGGEST_HIGHLIGHT_STYLE='fg=#8B949E'
+typeset -g ZSH_AUTOSUGGEST_HIGHLIGHT_STYLE='fg=8'
 typeset -gA ZSH_HIGHLIGHT_STYLES
-ZSH_HIGHLIGHT_STYLES[default]='fg=#E6EDF3'
-ZSH_HIGHLIGHT_STYLES[unknown-token]='fg=#E78A8A'
-ZSH_HIGHLIGHT_STYLES[reserved-word]='fg=#D6B48C'
-ZSH_HIGHLIGHT_STYLES[precommand]='fg=#A8D5BA'
-ZSH_HIGHLIGHT_STYLES[commandseparator]='fg=#8B949E'
-ZSH_HIGHLIGHT_STYLES[path]='fg=#B8C1CC'
-ZSH_HIGHLIGHT_STYLES[path_pathseparator]='fg=#8B949E'
-ZSH_HIGHLIGHT_STYLES[single-quoted-argument]='fg=#D6B48C'
-ZSH_HIGHLIGHT_STYLES[double-quoted-argument]='fg=#D6B48C'
-ZSH_HIGHLIGHT_STYLES[dollar-quoted-argument]='fg=#D6B48C'
-ZSH_HIGHLIGHT_STYLES[redirection]='fg=#C4A7E7'
-ZSH_HIGHLIGHT_STYLES[comment]='fg=#6E7681'
+ZSH_HIGHLIGHT_STYLES[default]='fg=7'
+ZSH_HIGHLIGHT_STYLES[unknown-token]='fg=1'
+ZSH_HIGHLIGHT_STYLES[reserved-word]='fg=3'
+ZSH_HIGHLIGHT_STYLES[precommand]='fg=2'
+ZSH_HIGHLIGHT_STYLES[commandseparator]='fg=4'
+ZSH_HIGHLIGHT_STYLES[path]='fg=6'
+ZSH_HIGHLIGHT_STYLES[path_pathseparator]='fg=4'
+ZSH_HIGHLIGHT_STYLES[single-quoted-argument]='fg=3'
+ZSH_HIGHLIGHT_STYLES[double-quoted-argument]='fg=3'
+ZSH_HIGHLIGHT_STYLES[dollar-quoted-argument]='fg=3'
+ZSH_HIGHLIGHT_STYLES[redirection]='fg=5'
+ZSH_HIGHLIGHT_STYLES[comment]='fg=8'
 if [[ -r \$_fluxenv_prefix/share/zsh-autosuggestions/zsh-autosuggestions.zsh ]]; then
     source "\$_fluxenv_prefix/share/zsh-autosuggestions/zsh-autosuggestions.zsh"
 fi

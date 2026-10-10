@@ -112,11 +112,13 @@ bash scripts/fluxenv --dry-run --with-vim --device-name "工作 Mac" --local-hos
 
 生成文件位于 `~/.config/fluxenv/`：
 
-- `macos.zsh`：Homebrew PATH / 补全、共享去重历史、macOS 颜色别名、autojump、Starship、两个 zsh 插件。
-- `starship-macos.toml`：沿用 Linux 宿主机提示符样式，显示用户名和真实主机名。
+- `macos.zsh`：Homebrew PATH / 补全、共享去重历史、macOS 颜色别名、autojump、Starship、两个 zsh 插件；在 Apple Terminal 中自动设置一套高对比 ANSI 调色板。
+- `starship-macos.toml`：保留 Starship 原生布局，使用终端的 ANSI 色位显示用户名、主机名、路径和 Git 状态。
 - `vimrc-macos`：选择 Vim 时生成基本编辑设置，保留已有 Vim 配置和插件，不导入 Linux 的 Vundle 配置。
 
 `macos.local.zsh` 可放个人设置，安装器不会创建或覆盖它。已有 `STARSHIP_CONFIG` 设置优先于默认主题。不会读取或复制仓库中的个人 `zshrc.txt`。
+
+Apple Terminal 的调色板通过当前窗口的 ANSI 配色序列设置，不改写 Terminal.app 的全局 Profile。若要保留 Profile 自己的颜色，在 `macos.local.zsh` 中加入 `export FLUXENV_TERMINAL_THEME=none`；其他终端不会启用这套窗口调色板。
 
 仅在内容确实需要修改时，在 `~/.local/state/fluxenv/macos/backups/<运行 ID>/` 备份现有文件。相同文件和本地修改的生成文件不会重写；重复运行也不会产生多余备份。需要回退时，恢复对应启动文件；首次安装前不存在的文件，可移除其中的 FluxEnv 托管块。生成配置独立于仓库路径，安装后无需保留原仓库位置。
 
