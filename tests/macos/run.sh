@@ -242,7 +242,8 @@ assert_contains "$FLUXENV_TEST_ROOT/user/.zshrc" EXISTING_RC
 assert_contains "$FLUXENV_TEST_ROOT/user/.zprofile" EXISTING_PROFILE
 assert_contains "$FLUXENV_TEST_ROOT/user/.vimrc" 'set ignorecase'
 ! grep -q 'palette = ' "$FLUXENV_TEST_ROOT/config dir/starship-macos.toml" || fail 'Mac prompt overrides Terminal palette'
-assert_contains "$FLUXENV_TEST_ROOT/config dir/starship-macos.toml" 'style_user = "bright-blue bold"'
+assert_contains "$FLUXENV_TEST_ROOT/config dir/starship-macos.toml" 'style_user = "bright-green bold"'
+assert_contains "$FLUXENV_TEST_ROOT/config dir/starship-macos.toml" 'format = "[$symbol](bright-cyan)[$branch]($style)"'
 assert_contains "$FLUXENV_TEST_ROOT/config dir/macos.zsh" 'TERM_PROGRAM'
 assert_contains "$FLUXENV_TEST_ROOT/config dir/macos.zsh" '\033]4;3;rgb:f4/c9/5d'
 assert_contains "$FLUXENV_TEST_ROOT/config dir/macos.zsh" 'ZSH_HIGHLIGHT_STYLES[default]'

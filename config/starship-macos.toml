@@ -3,7 +3,7 @@ add_newline = false
 command_timeout = 500
 
 [username]
-style_user = "bright-blue bold"
+style_user = "bright-green bold"
 style_root = "bright-red bold"
 format = "[$user]($style)"
 show_always = true
@@ -27,15 +27,15 @@ disabled = true
 disabled = true
 
 [directory]
-style = "bright-blue"
+style = "bright-white"
 truncation_length = 4
 truncation_symbol = "…/"
 format = "[$path]($style)[$read_only]($read_only_style) "
 
 [git_branch]
 symbol = "on "
-style = "bright-magenta bold"
-format = "[$symbol$branch]($style)"
+style = "bright-purple bold"
+format = "[$symbol](bright-cyan)[$branch]($style)"
 
 [git_status]
 disabled = false
@@ -45,7 +45,7 @@ staged = "[+ ](bright-green)"
 modified = "[! ](bright-red)"
 untracked = "[? ](bright-yellow)"
 deleted = "[✘ ](bright-red)"
-renamed = "[» ](bright-magenta)"
+renamed = "[» ](bright-purple)"
 conflicted = "[= ](bright-red bold)"
 stashed = "[$ ](bright-cyan)"
 ahead = "⇡"
@@ -63,7 +63,7 @@ format = '[\($symbol$environment\)]($style) '
 [character]
 success_symbol = "[❯](bright-green bold)"
 error_symbol = "[❯](bright-red bold)"
-vimcmd_symbol = "[❮](bright-magenta bold)"
+vimcmd_symbol = "[❮](bright-purple bold)"
 
 [cmd_duration]
 style = "bright-cyan"
