@@ -29,6 +29,12 @@ Options:
   --skip-device-name    跳过设备改名
   --with-vim            安装 Vim / astyle 并配置 Vim
   --without-vim         跳过 Vim
+  --with-nvim           安装 NeoVim 和 Config-NeoVim 配置、插件、语言工具
+  --without-nvim        跳过 NeoVim
+  --with-docker         安装 Docker CLI / Compose / Buildx，使用 Colima 引擎
+  --without-docker      跳过 Docker
+  --with-mactex         安装 MacTeX 完整发行版
+  --without-mactex      跳过 MacTeX
   --hf-login            安装后运行 hf auth login（浏览器设备码登录）
   --skip-hf-login       本次不询问 Hugging Face 登录
   --rename-device      已初始化后仍询问设备改名
@@ -48,6 +54,9 @@ cli_device_name=""
 cli_local_hostname=""
 cli_skip_device_name=0
 cli_vim=""
+cli_nvim=""
+cli_docker=""
+cli_mactex=""
 cli_hf_login=""
 cli_state_dir=""
 show_state=""
@@ -83,6 +92,12 @@ while [ "$#" -gt 0 ]; do
         --skip-device-name) cli_skip_device_name=1; shift ;;
         --with-vim) cli_vim=1; shift ;;
         --without-vim) cli_vim=0; shift ;;
+        --with-nvim) cli_nvim=1; shift ;;
+        --without-nvim) cli_nvim=0; shift ;;
+        --with-docker) cli_docker=1; shift ;;
+        --without-docker) cli_docker=0; shift ;;
+        --with-mactex) cli_mactex=1; shift ;;
+        --without-mactex) cli_mactex=0; shift ;;
         --hf-login) cli_hf_login=1; shift ;;
         --skip-hf-login) cli_hf_login=0; shift ;;
         --rename-device) RENAME_DEVICE=1; shift ;;
@@ -111,6 +126,9 @@ fi
 [ -z "$cli_device_name" ] || DEVICE_NAME="$cli_device_name"
 [ -z "$cli_local_hostname" ] || LOCAL_HOST_NAME="$cli_local_hostname"
 [ -z "$cli_vim" ] || ENABLE_VIM="$cli_vim"
+[ -z "$cli_nvim" ] || ENABLE_NVIM="$cli_nvim"
+[ -z "$cli_docker" ] || ENABLE_DOCKER="$cli_docker"
+[ -z "$cli_mactex" ] || ENABLE_MACTEX="$cli_mactex"
 [ -z "$cli_hf_login" ] || HF_LOGIN="$cli_hf_login"
 if [ "$cli_skip_device_name" -eq 1 ]; then
     DEVICE_NAME=""
@@ -126,6 +144,10 @@ MACOS_STATE_DIR="${MACOS_STATE_DIR:-${XDG_STATE_HOME:-$HOME/.local/state}/fluxen
 [ -z "$cli_state_dir" ] || MACOS_STATE_DIR="$cli_state_dir"
 MACOS_ZDOTDIR="${MACOS_ZDOTDIR:-${ZDOTDIR:-$HOME}}"
 MACOS_VIMRC="${MACOS_VIMRC:-$TARGET_HOME/.vimrc}"
+MACOS_NVIM_CONFIG_DIR="${MACOS_NVIM_CONFIG_DIR:-${XDG_CONFIG_HOME:-$TARGET_HOME/.config}/nvim}"
+MACOS_DOCKER_CONFIG_DIR="${MACOS_DOCKER_CONFIG_DIR:-${DOCKER_CONFIG:-$TARGET_HOME/.docker}}"
+MACOS_TEX_BIN_DIR="${MACOS_TEX_BIN_DIR:-/Library/TeX/texbin}"
+MACOS_MACTEX_PENDING=0
 BREW_BIN=""
 BREW_PREFIX=""
 BACKUP_DIR=""
@@ -134,7 +156,7 @@ VIM_ENABLED=0
 UV_BIN=""
 HF_BIN=""
 UV_TOOL_BIN=""
-TOTAL_STAGES=10
+TOTAL_STAGES=13
 CURRENT_STAGE=0
 
 state_open "$MACOS_STATE_DIR" macos
@@ -152,6 +174,9 @@ STATE_CURRENT_RESOURCE=tools/huggingface
 install_huggingface_tool
 install_javascript_tools
 step_macos_device_name
+step_macos_neovim
+step_macos_docker
+step_macos_mactex
 step_macos_shell_env
 step_macos_vim
 stage "Hugging Face 登录"

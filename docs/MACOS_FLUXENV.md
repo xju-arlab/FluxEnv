@@ -31,6 +31,9 @@ macOS 无需运行 `scripts/fetch_resources.sh`。仓库内的 Starship 离线�
 | zsh、curl、unzip、sudo、locale | 使用 macOS 自带工具 / 设置 |
 | gcc / g++ / make | Apple 命令行开发工具提供 Clang 和兼容命令；需要 GNU GCC 可配置 `MACOS_EXTRA_FORMULAE="gcc"` |
 | Vim、astyle | 可选安装 Homebrew 版本，Vim 使用 macOS 剪贴板 |
+| NeoVim / LazyVim | 可选安装 Homebrew NeoVim、rg、fd、Tree-sitter CLI、Java 21 和 Config-NeoVim |
+| Docker | 可选安装 CLI、Compose、Buildx；复用可用引擎，缺失时使用 Colima |
+| MacTeX | 可选安装官方完整发行版（Homebrew cask） |
 | Linux xclip、glibc-doc、用户 / SSH / systemd 设置 | Mac 流程不执行 |
 
 安装只补充缺失的 formula，已有工具不会被 FluxEnv 主动升级。Homebrew 可能为新工具安装或更新所需依赖。不添加镜像、不写入代理配置；已有终端配置中的网络设置保留。
@@ -77,17 +80,20 @@ sudo scutil --set HostName ""   # 如果原来未设置 HostName
 ```bash
 bash scripts/fluxenv --help
 bash scripts/fluxenv --with-vim
+bash scripts/fluxenv --with-nvim --with-docker --with-mactex
 bash scripts/fluxenv --without-vim --skip-device-name
 bash scripts/fluxenv --config config/example-macos.env --non-interactive
 bash scripts/fluxenv --dry-run --with-vim --device-name "工作 Mac" --local-hostname work-mac
 ```
 
-默认配置在 `config/profile-macos.env`，用户覆盖示例在 `config/example-macos.env`。配置文件按 Bash 加载，只使用可信文件；命令行的改名 / 跳过改名 / Vim 开关优先于配置。
+默认配置在 `config/profile-macos.env`，用户覆盖示例在 `config/example-macos.env`。配置文件按 Bash 加载，只使用可信文件；命令行开关优先于配置。可选工具都有对应 `--without-*` 开关，安装选择会记入历史，重跑时复用。
 
 | 配置 | 默认值 / 作用 |
 | --- | --- |
 | `INSTALL_HOMEBREW` | `1`；缺失时安装官方 Homebrew，`0` 要求提前安装 |
 | `ENABLE_VIM` | `ask`；交互询问，非交互默认不安装；也可设 `1` / `0` |
+| `ENABLE_NVIM` / `ENABLE_DOCKER` / `ENABLE_MACTEX` | `ask`；首次询问，非交互默认跳过；`1` 安装，`0` 跳过 |
+| `NVIM_CONFIG_REPO` | `https://github.com/winbeau/Config-NeoVim.git` |
 | `HF_LOGIN` | `ask`；交互可选浏览器设备码登录，`0` 跳过，`1` 请求终端授权 |
 | `HF_TOOL_SPEC` | `huggingface_hub>=1.20`；确保支持原生设备码登录 |
 | `FLUXENV_TOOL_BIN_DIR` | 可选；指定 uv 工具的可执行目录，自动加入 zsh PATH |
@@ -103,8 +109,19 @@ bash scripts/fluxenv --dry-run --with-vim --device-name "工作 Mac" --local-hos
 | `MACOS_STATE_DIR` | `${XDG_STATE_HOME:-$HOME/.local/state}/fluxenv/macos` |
 | `MACOS_ZDOTDIR` | `${ZDOTDIR:-$HOME}`；zsh 启动文件所在目录 |
 | `MACOS_VIMRC` | `$HOME/.vimrc`；可选自定义 Vim 启动文件路径 |
+| `MACOS_NVIM_CONFIG_DIR` | `${XDG_CONFIG_HOME:-$HOME/.config}/nvim`；末级目录须为 `nvim` |
+| `MACOS_DOCKER_CONFIG_DIR` | `${DOCKER_CONFIG:-$HOME/.docker}` |
+| `MACOS_TEX_BIN_DIR` | `/Library/TeX/texbin`；自动加入 zsh PATH |
 
 若 `.zshenv` 内才设置 `ZDOTDIR`，运行时请显式传入相同路径，例如 `ZDOTDIR="$HOME/.config/zsh" bash scripts/fluxenv`。
+
+## NeoVim、Docker 和 MacTeX
+
+`--with-nvim` 克隆 Config-NeoVim 到 `~/.config/nvim`，按锁文件初始化 LazyVim 插件，并安装配置所需的 Mason 语言工具和 Tree-sitter 解析器。已有同源仓库及本地改动会复用，其他配置或符号链接会保留。重跑检查安装记录和资源是否存在；配置变化或资源缺失时重新补齐。Java 支持通过 `JAVA21_HOME` 使用 Homebrew Java 21，不改变其他工具的 `JAVA_HOME`。
+
+`--with-docker` 提供 `docker`、`docker compose` 和 `docker buildx`。可连接的现有引擎直接复用；默认 context 没有引擎时安装并启动 Colima。显式指定或其他 context 不可连接时会提示检查原引擎，避免覆盖用户选择。Colima 通过 `colima start` / `colima stop` 管理，FluxEnv 不配置开机自启。插件通过独立链接注册，不改写 Docker 登录凭据。
+
+`--with-mactex` 使用官方完整 MacTeX，检测 `pdflatex`、`xelatex` 和 `latexmk` 后复用。安装包由 Homebrew 下载、校验并缓存；非交互运行且没有管理员授权时仅下载，显示待安装状态和 `brew install --cask mactex` 命令。管理员安装完成后执行 `source ~/.zshrc`，TeX 路径会自动生效。
 
 ## 终端配置与备份
 
@@ -112,13 +129,13 @@ bash scripts/fluxenv --dry-run --with-vim --device-name "工作 Mac" --local-hos
 
 生成文件位于 `~/.config/fluxenv/`：
 
-- `macos.zsh`：Homebrew PATH / 补全、共享去重历史、macOS 颜色别名、autojump、Starship、两个 zsh 插件；在 Apple Terminal 中自动设置一套高对比 ANSI 调色板。
+- `macos.zsh`：Homebrew PATH / 补全、共享去重历史、macOS 颜色别名、autojump、Starship、两个 zsh 插件；在 Apple Terminal 中尝试设置 ANSI 调色板。
 - `starship-macos.toml`：保留 Starship 原生布局，使用终端的 ANSI 色位显示用户名、主机名、路径和 Git 状态。
 - `vimrc-macos`：选择 Vim 时生成基本编辑设置，保留已有 Vim 配置和插件，不导入 Linux 的 Vundle 配置。
 
 `macos.local.zsh` 可放个人设置，安装器不会创建或覆盖它。已有 `STARSHIP_CONFIG` 设置优先于默认主题。不会读取或复制仓库中的个人 `zshrc.txt`。
 
-Apple Terminal 的调色板通过当前窗口的 ANSI 配色序列设置，不改写 Terminal.app 的全局 Profile。若要保留 Profile 自己的颜色，在 `macos.local.zsh` 中加入 `export FLUXENV_TERMINAL_THEME=none`；其他终端不会启用这套窗口调色板。
+FluxEnv 会尝试通过当前窗口的 ANSI 配色序列设置调色板，不改写 Terminal.app 的全局 Profile；实际显示取决于 Terminal 版本与 Profile。最终配色需要在 Terminal 的 Profiles → Pro → Text → ANSI Colors 中手动调节，色板与效果图见 [README](../README.md#starship-最终效果与-terminal-手动配色)。若要完全使用 Profile 自己的颜色，在 `macos.local.zsh` 中加入 `export FLUXENV_TERMINAL_THEME=none`；其他终端不会启用这套窗口调色板。
 
 仅在内容确实需要修改时，在 `~/.local/state/fluxenv/macos/backups/<运行 ID>/` 备份现有文件。相同文件和本地修改的生成文件不会重写；重复运行也不会产生多余备份。需要回退时，恢复对应启动文件；首次安装前不存在的文件，可移除其中的 FluxEnv 托管块。生成配置独立于仓库路径，安装后无需保留原仓库位置。
 

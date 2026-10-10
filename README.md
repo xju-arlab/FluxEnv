@@ -142,15 +142,27 @@ macOS 默认使用 `macos` 流程；Linux 默认 profile 为 `normal`，按非 W
 
 ```bash
 bash scripts/fluxenv --dry-run   # 先预览，不修改设备
-bash scripts/fluxenv            # 首次交互询问设备改名、Vim 和 hf 登录
+bash scripts/fluxenv            # 交互选择设备改名、编辑器、Docker、MacTeX 和 hf 登录
+bash scripts/fluxenv --with-nvim --with-docker --with-mactex  # 补装开发工具
 bash scripts/fluxenv --history  # 查看历史，不安装
+source ~/.zshrc                 # 完成后刷新当前终端
 ```
 
-也可以显式运行 `bash scripts/fluxenv-macos`，或使用 `--profile macos`。保留 Git、wget、jq、autojump、uv、Starship、zsh 自动建议和语法高亮等工具，增加 `hf` / `gh` / `gc` 和 Node.js 24 / pnpm；使用 macOS 自带 zsh/curl/unzip 和 Apple 编译工具，可选安装 Vim/astyle。
+也可使用 `scripts/fluxenv-macos` 或 `--profile macos`。可选工具包括 Vim/astyle、NeoVim + [Config-NeoVim](https://github.com/winbeau/Config-NeoVim)（LazyVim，自动安装插件、语言服务和语法解析器）、Docker CLI/Compose/Buildx + Colima，以及完整 MacTeX。已有 NeoVim 配置和可用 Docker 引擎会保留或复用。
 
-Homebrew 未安装时使用官方安装器；Apple 命令行开发工具缺失时打开系统安装窗口，完成后重新执行脚本。只有 Homebrew 首次安装和设备改名等需要管理员权限的步骤会请求授权。现有 `.zshrc` / `.zprofile` / `.vimrc` 先备份，通过托管块保留原有内容。
+缺少 Homebrew 或 Apple 开发工具时按提示安装后重跑。Homebrew 首次安装、设备改名和 MacTeX 安装可能需要管理员密码；无人值守时 MacTeX 会先下载并校验，随后手动执行 `brew install --cask mactex`。现有启动文件先备份，通过托管块保留个人设置。
 
 完整选项、配置文件和验证说明见 [`docs/MACOS_FLUXENV.md`](docs/MACOS_FLUXENV.md)。
+
+#### Starship 最终效果与 Terminal 手动配色
+
+最终颜色需要在 **Terminal → 设置 → 描述文件（Profiles）→ Pro → 文本（Text）→ ANSI Colors** 手动调整：Normal 黄色格设为橙色，Bright 黄色格设为亮黄色，紫色用于 Git 分支。Starship 使用这些 ANSI 色位，用户名为亮黄色、路径为橙色、主机名为青色，分支不显示 `on` 前缀。
+
+![Terminal Pro 的 ANSI 色板，Normal 黄色格调整为橙色](docs/images/macos-terminal-ansi-colors.png)
+
+要固定使用 Profile 色板，在 `~/.config/fluxenv/macos.local.zsh` 中加入 `export FLUXENV_TERMINAL_THEME=none` 后刷新终端。效果如下：
+
+![macOS Terminal 中的 Starship 最终效果：亮黄色用户名、橙色路径、紫色 main 分支](docs/images/macos-starship-preview.png)
 
 ### 1. `standard` WSL 模式
 
@@ -176,7 +188,7 @@ cd /path/to/FluxEnv
 
 ### 2. `normal` 宿主机模式
 
-适用于非 WSL 的 Ubuntu / Debian 宿主机：
+适用于非 WSL 的 Ubuntu / Debian 宿主机；通过 `sudo` 启动时复用当前用户：
 
 ```bash
 cd /path/to/FluxEnv
@@ -188,13 +200,6 @@ sudo ./scripts/fluxenv --profile normal
 ```bash
 cd /path/to/FluxEnv
 sudo ./scripts/fluxenv --profile normal --no-apt-mirror
-```
-
-普通用户通过 `sudo` 启动时，会复用当前 `sudo` 用户：
-
-```bash
-cd /path/to/FluxEnv
-sudo ./scripts/fluxenv --profile normal
 ```
 
 纯 root 会话启动时，会进入新建用户流程：

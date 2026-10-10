@@ -149,12 +149,16 @@ step_macos_shell_env() {
     local quoted_tools=""
     local quoted_nvm=""
     local quoted_pnpm=""
+    local quoted_java21=""
+    local quoted_tex=""
     local body=""
     printf -v quoted_brew '%q' "$BREW_BIN"
     printf -v quoted_shell '%q' "$MACOS_CONFIG_DIR/macos.zsh"
     printf -v quoted_tools '%q' "$UV_TOOL_BIN"
     printf -v quoted_nvm '%q' "$NVM_DIR"
     printf -v quoted_pnpm '%q' "$PNPM_HOME"
+    printf -v quoted_java21 '%q' "$BREW_PREFIX/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home"
+    printf -v quoted_tex '%q' "$MACOS_TEX_BIN_DIR"
     body="if [ -x $quoted_brew ]; then"$'\n'"    eval \"\$($quoted_brew shellenv)\""$'\n'"fi"
     macos_update_block "$MACOS_ZDOTDIR/.zprofile" '# >>> fluxenv macos >>>' '# <<< fluxenv macos <<<' "$body" zprofile
     body="$(cat <<EOF
@@ -166,6 +170,11 @@ export PNPM_HOME=$quoted_pnpm
 export NVM_DIR=$quoted_nvm
 [ ! -r "\$NVM_DIR/nvm.sh" ] || source "\$NVM_DIR/nvm.sh"
 nvm use --silent default >/dev/null 2>&1 || true
+# Dedicated Java 21 variable for Config-NeoVim; leave JAVA_HOME intact.
+if [[ -x $quoted_java21/bin/java && -z \${JAVA21_HOME:-} ]]; then
+    export JAVA21_HOME=$quoted_java21
+fi
+[[ ! -d $quoted_tex ]] || path=($quoted_tex \$path)
 EOF
 )"
     macos_update_block "$MACOS_ZDOTDIR/.zshrc" '# >>> fluxenv macos >>>' '# <<< fluxenv macos <<<' "$body" zshrc

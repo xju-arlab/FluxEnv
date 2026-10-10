@@ -193,9 +193,12 @@ new_case() {
         printf 'MACOS_STATE_DIR=%q\n' "$FLUXENV_TEST_ROOT/state"
         printf 'MACOS_ZDOTDIR=%q\n' "$FLUXENV_TEST_ROOT/user"
         printf 'MACOS_VIMRC=%q\n' "$FLUXENV_TEST_ROOT/user/.vimrc"
+        printf 'MACOS_NVIM_CONFIG_DIR=%q\n' "$FLUXENV_TEST_ROOT/user/.config/nvim"
+        printf 'MACOS_DOCKER_CONFIG_DIR=%q\n' "$FLUXENV_TEST_ROOT/user/.docker"
+        printf 'MACOS_TEX_BIN_DIR=%q\n' "$FLUXENV_TEST_ROOT/user/texbin"
         printf 'NVM_DIR=%q\n' "$FLUXENV_TEST_ROOT/nvm"
         printf 'PNPM_HOME=%q\n' "$FLUXENV_TEST_ROOT/pnpm"
-        printf 'ENABLE_VIM=0\nCHANGE_DEFAULT_SHELL=0\n'
+        printf 'ENABLE_VIM=0\nENABLE_NVIM=0\nENABLE_DOCKER=0\nENABLE_MACTEX=0\nCHANGE_DEFAULT_SHELL=0\n'
     } > "$FLUXENV_TEST_ROOT/config.env"
 }
 
@@ -485,3 +488,4 @@ if run_homebrew_stage; then fail 'failed installer download accepted'; fi
 printf 'PASS: missing Homebrew, fresh-install preview and failed-download handling\n'
 
 printf 'All macOS installer checks passed.\n'
+bash "$ROOT_DIR/tests/macos/developer_tools.sh"
