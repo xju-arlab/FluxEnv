@@ -35,9 +35,7 @@ enter_final_zsh() {
 step_finalize() {
     stage "清理和完成"
 
-    if [ "$ENABLE_TEMP_SUDO" -eq 1 ]; then
-        remove_path /etc/sudoers.d/temp_install
-    fi
+    state_cleanup
 
     echo ""
     echo "================================================================"
@@ -62,5 +60,9 @@ step_finalize() {
         echo "  Vim: 未配置"
     fi
     echo "================================================================"
+    state_finish
+    state_summary
+    # Final shell replacement does not run Bash's EXIT trap.
+    state_exit 0
     enter_final_zsh
 }

@@ -26,6 +26,7 @@ word_count() {
 
 stage() {
     CURRENT_STAGE=$((CURRENT_STAGE + 1))
+    STATE_CURRENT_RESOURCE="stage:$1"
     echo ""
     echo "================================================================"
     echo "  [阶段 ${CURRENT_STAGE}/${TOTAL_STAGES}] $1"

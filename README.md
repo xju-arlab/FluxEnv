@@ -2,9 +2,11 @@
 
 ![Shell](https://img.shields.io/badge/Shell-Bash-4EAA25?logo=gnubash&logoColor=white)
 ![Platform](https://img.shields.io/badge/Platform-macOS%20%7C%20Ubuntu%20%7C%20Debian%20%7C%20WSL-blue)
-![Mode](https://img.shields.io/badge/Mode-Offline--first-brightgreen)
+![Mode](https://img.shields.io/badge/Mode-Incremental-brightgreen)
 
 FluxEnv 是一个基于 Bash 的环境初始化工具，面向 macOS、WSL、Ubuntu / Debian 宿主机、AutoDL 容器用户环境，以及 root-only 容器环境。macOS 使用 Homebrew 安装工具，支持交互修改设备名，不配置代理、不换源、不创建用户。
+
+macOS 和 Linux 共用增量初始化与历史框架：重复运行会检测并复用已有环境，只补充缺失的工具和配置，保留本地修改。两端安装 `uv`、通过 `uv tool install 'huggingface_hub>=1.20'` 提供 `hf`，并安装 GitHub CLI（`gh`）。交互模式可选择 `hf auth login` 浏览器设备码登录；已有登录会复用。查看 [`docs/INCREMENTAL.md`](docs/INCREMENTAL.md) 了解状态、历史、失败重试和登录用法。
 
 ## NetUI 代理配置
 
@@ -140,10 +142,11 @@ macOS 默认使用 `macos` 流程；Linux 默认 profile 为 `normal`，按非 W
 
 ```bash
 bash scripts/fluxenv --dry-run   # 先预览，不修改设备
-bash scripts/fluxenv            # 安装工具，交互询问设备改名和 Vim
+bash scripts/fluxenv            # 首次交互询问设备改名、Vim 和 hf 登录
+bash scripts/fluxenv --history  # 查看历史，不安装
 ```
 
-也可以显式运行 `bash scripts/fluxenv-macos`，或使用 `--profile macos`。保留 Git、wget、jq、autojump、uv、Starship、zsh 自动建议和语法高亮等工具；使用 macOS 自带 zsh/curl/unzip 和 Apple 编译工具，可选安装 Vim/astyle。
+也可以显式运行 `bash scripts/fluxenv-macos`，或使用 `--profile macos`。保留 Git、wget、jq、autojump、uv、Starship、zsh 自动建议和语法高亮等工具，增加 `hf` / `gh`；使用 macOS 自带 zsh/curl/unzip 和 Apple 编译工具，可选安装 Vim/astyle。
 
 Homebrew 未安装时使用官方安装器；Apple 命令行开发工具缺失时打开系统安装窗口，完成后重新执行脚本。只有 Homebrew 首次安装和设备改名等需要管理员权限的步骤会请求授权。现有 `.zshrc` / `.zprofile` / `.vimrc` 先备份，通过托管块保留原有内容。
 
@@ -245,7 +248,7 @@ sudo ./scripts/fluxenv --profile normal --no-apt-mirror
 
 ## 常用环境准备
 
-初始化流程会尝试将 `uv` 安装到 `/usr/local/bin`，供 `root` 和普通用户共同使用。默认优先使用 `offline_resources/uv-install.sh`；如需在线回退，可在配置中设置 `ALLOW_ONLINE_FETCH=1`。
+Linux 流程先复用已有可运行的 `uv`，缺失时安装到 `/usr/local/bin`，供 `root` 和普通用户共同使用。优先使用 `offline_resources/uv-install.sh`，默认允许官方在线回退（`ALLOW_ONLINE_FETCH=1`）。hf 通过目标用户的 uv 工具环境安装，gh 通过 apt 补齐；详情见 [`docs/INCREMENTAL.md`](docs/INCREMENTAL.md)。
 
 ```bash
 ./scripts/fetch_resources.sh

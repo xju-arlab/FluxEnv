@@ -22,6 +22,8 @@ macOS 无需运行 `scripts/fetch_resources.sh`。仓库内的 Starship 离线�
 | --- | --- |
 | wget、jq、Git、autojump、universal-ctags | Homebrew 同名 formula |
 | uv、Starship | Homebrew 同名 formula |
+| GitHub CLI（gh） | Homebrew `gh` |
+| Hugging Face CLI（hf） | 当前用户的 `uv tool install 'huggingface_hub>=1.20'` |
 | zsh-autosuggestions、zsh-syntax-highlighting | Homebrew 安装并自动加载相同插件 |
 | zsh、curl、unzip、sudo、locale | 使用 macOS 自带工具 / 设置 |
 | gcc / g++ / make | Apple 命令行开发工具提供 Clang 和兼容命令；需要 GNU GCC 可配置 `MACOS_EXTRA_FORMULAE="gcc"` |
@@ -34,7 +36,7 @@ macOS 无需运行 `scripts/fetch_resources.sh`。仓库内的 Starship 离线�
 
 ## 设备名交互
 
-安装流程显示当前设备名，再询问是否改名。默认保留，输入新名后还会再次确认：
+首次安装流程显示当前设备名，再询问是否改名。默认保留，输入新名后还会再次确认；已初始化设备不重复询问，可用 `--rename-device` 再次进入交互：
 
 ```text
 是否修改这台 Mac 的设备名？ [y/N]: y
@@ -54,6 +56,7 @@ LocalHostName / HostName → my-macbook
 ```bash
 bash scripts/fluxenv --device-name "我的 MacBook" --local-hostname my-macbook
 bash scripts/fluxenv --skip-device-name
+bash scripts/fluxenv --rename-device
 ```
 
 交互运行时仍会确认。`--non-interactive` 只有显式参数或配置中的 `DEVICE_NAME` 才授权改名，否则保留当前名字。`--skip-device-name` 优先于任何指定名字。`--dry-run` 不调用 `sudo`，包括显式指定名字时也只展示计划。
@@ -82,6 +85,9 @@ bash scripts/fluxenv --dry-run --with-vim --device-name "工作 Mac" --local-hos
 | --- | --- |
 | `INSTALL_HOMEBREW` | `1`；缺失时安装官方 Homebrew，`0` 要求提前安装 |
 | `ENABLE_VIM` | `ask`；交互询问，非交互默认不安装；也可设 `1` / `0` |
+| `HF_LOGIN` | `ask`；交互可选浏览器设备码登录，`0` 跳过，`1` 请求终端授权 |
+| `HF_TOOL_SPEC` | `huggingface_hub>=1.20`；确保支持原生设备码登录 |
+| `FLUXENV_TOOL_BIN_DIR` | 可选；指定 uv 工具的可执行目录，自动加入 zsh PATH |
 | `CHANGE_DEFAULT_SHELL` | `ask`；当前用户已使用 `/bin/zsh` 时跳过，否则可选择切换 |
 | `MACOS_EXTRA_FORMULAE` | 空；额外的 Homebrew formula，以空格分隔 |
 | `DEVICE_NAME`、`LOCAL_HOST_NAME` | 空；设备显示名和可选的 Bonjour / 主机名 |
@@ -106,7 +112,20 @@ bash scripts/fluxenv --dry-run --with-vim --device-name "工作 Mac" --local-hos
 
 `macos.local.zsh` 可放个人设置，安装器不会创建或覆盖它。已有 `STARSHIP_CONFIG` 设置优先于默认主题。不会读取或复制仓库中的个人 `zshrc.txt`。
 
-每次实际运行在 `~/.local/state/fluxenv/macos/backups/<时间>.<随机值>/` 备份将修改的现有文件。需要回退时，恢复对应启动文件；首次安装前不存在的文件，可移除其中的 FluxEnv 托管块。生成配置独立于仓库路径，安装后无需保留原仓库位置。
+仅在内容确实需要修改时，在 `~/.local/state/fluxenv/macos/backups/<运行 ID>/` 备份现有文件。相同文件和本地修改的生成文件不会重写；重复运行也不会产生多余备份。需要回退时，恢复对应启动文件；首次安装前不存在的文件，可移除其中的 FluxEnv 托管块。生成配置独立于仓库路径，安装后无需保留原仓库位置。
+
+## 增量历史与登录
+
+```bash
+bash scripts/fluxenv --status
+bash scripts/fluxenv --history
+bash scripts/fluxenv --hf-login
+bash scripts/fluxenv --non-interactive --skip-hf-login
+```
+
+成功初始化后会显示已初始化并继续检查增量，补齐缺失工具、复用已有配置和登录。Vim 选择自动记忆，显式 `--with-vim` / `--without-vim` 可覆盖；需要再次交互改设备名时使用 `--rename-device`。
+
+Hugging Face 登录使用 `hf auth login` 自带的浏览器设备码流程，默认可跳过。设备码和令牌不写入 FluxEnv 历史。详细状态文件、失败恢复、Linux 对应行为和官方依据见 [`INCREMENTAL.md`](INCREMENTAL.md)。
 
 ## 验证
 
@@ -115,6 +134,7 @@ for script in scripts/fluxenv scripts/fluxenv-macos lib/*.sh lib/steps/*.sh lib/
     /bin/bash -n "$script" || exit 1
 done
 bash tests/macos/run.sh
+bash tests/incremental/run.sh
 ```
 
 测试以临时配置目录和模拟的 Homebrew / 管理员 / 设备改名命令运行，不改变 `HOME`、真实用户文件或设备名，包含伪终端中的实际交互。测试依赖本机 Bash、zsh、Vim 和 Python 3，不需要联网。

@@ -3,7 +3,7 @@
 load_defaults() {
     FLUXENV_ROOT="$1"
     OFFLINE_DIR="$FLUXENV_ROOT/offline_resources"
-    PROFILE_STEPS="preflight packages uv ssh hostname user wsl_user sudo shell_env vim finalize"
+    PROFILE_STEPS="preflight packages uv ssh hostname user wsl_user sudo user_tools shell_env vim hf_auth finalize"
 
     PROFILE_NAME="normal"
     LAUNCH_MODE=""
@@ -16,7 +16,7 @@ load_defaults() {
     ENABLE_VIM="ask"
     VIM_MODE="full"
     INSTALL_VIM_PLUGINS=1
-    ALLOW_ONLINE_FETCH=0
+    ALLOW_ONLINE_FETCH=1
     UV_INSTALL_DIR="/usr/local/bin"
     STARSHIP_PRESET="bare-metal"
     VISUAL_HOSTNAME_ONLY=0
@@ -35,6 +35,9 @@ load_defaults() {
     USER_NAME=""
     USER_PASSWORD=""
     XDG_TARGET_USER=""
+    FLUXENV_STATE_DIR="/var/lib/fluxenv"
+    HF_LOGIN=ask
+    HF_TOOL_SPEC="huggingface_hub>=1.20"
 
     INIT_SYSTEM="unknown"
     CONTAINER_MODE=0

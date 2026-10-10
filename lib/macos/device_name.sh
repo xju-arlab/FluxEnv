@@ -71,6 +71,11 @@ step_macos_device_name() {
         progress "跳过设备改名"
         return 0
     fi
+    if [ "$STATE_INITIALIZED" -eq 1 ] && [ -z "$DEVICE_NAME" ] && [ "${RENAME_DEVICE:-0}" -eq 0 ]; then
+        progress "设备已初始化，复用现有设备名；需要改名时使用 --rename-device"
+        state_record device/name reused
+        return 0
+    fi
     progress "当前设备名: $(macos_read_device_name ComputerName)"
     progress "Bonjour 名: $(macos_read_device_name LocalHostName)"
     local current_host=""
@@ -102,8 +107,16 @@ step_macos_device_name() {
     macos_validate_local_hostname "$LOCAL_HOST_NAME" || die "无效的 Bonjour 名"
     progress "ComputerName → $DEVICE_NAME"
     progress "LocalHostName / HostName → $LOCAL_HOST_NAME"
+    if [ "$(macos_read_device_name ComputerName)" = "$DEVICE_NAME" ] &&
+        [ "$(macos_read_device_name LocalHostName)" = "$LOCAL_HOST_NAME" ] &&
+        [ "$(macos_read_device_name HostName)" = "$LOCAL_HOST_NAME" ]; then
+        progress "三个名字均已匹配，复用设备名称"
+        state_record device/name reused
+        return 0
+    fi
     if [ "$INTERACTIVE" -eq 1 ]; then
         prompt_yes_no "确认修改以上三个名字？（需要管理员密码）" n || return 0
     fi
     macos_apply_device_name "$DEVICE_NAME" "$LOCAL_HOST_NAME"
+    [ "$DRY_RUN" -eq 1 ] || state_record device/name applied
 }

@@ -107,20 +107,29 @@ configure_zsh_starship() {
     fi
     command -v zsh >/dev/null || { apt-get update -qq && apt-get install -y -qq zsh; }
 
-    (
+    env FLUXENV_ROOT="$FLUXENV_ROOT" FLUXENV_SHELL_USER="$user" FLUXENV_SHELL_HOME="$user_home" /bin/bash <<'SHELL_SETUP'
+        set -euo pipefail
+        user="$FLUXENV_SHELL_USER"
+        user_home="$FLUXENV_SHELL_HOME"
         source "$FLUXENV_ROOT/lib/core.sh"
         source "$FLUXENV_ROOT/lib/config.sh"
-        source "$lib"
-        set +e                                   # 配置为尽力而为,单步失败不中断
+        source "$FLUXENV_ROOT/lib/state.sh"
+        source "$FLUXENV_ROOT/lib/managed.sh"
+        source "$FLUXENV_ROOT/lib/steps/user_shell.sh"
         init_colors
         load_defaults "$FLUXENV_ROOT"
         OFFLINE_DIR="$(mktemp -d)"               # 空目录 → 绕过所有离线资源
         ALLOW_ONLINE_FETCH=1                     # 全线上:starship 走 starship.rs,插件走 git clone
         HOST_NAME="$(hostname 2>/dev/null || echo host)"
-        command -v starship >/dev/null || install_starship
+        TARGET_USER="$user"
+        UV_TOOL_BIN="$user_home/.local/bin"
+        state_open "/var/lib/fluxenv/user-shell/$user" "user-shell/$user"
+        state_begin
+        install_starship || die "Starship 安装失败"
         configure_shell_env_for_user "$user" "$user_home"
+        state_finish
         rmdir "$OFFLINE_DIR" 2>/dev/null || true
-    )
+SHELL_SETUP
     patch_zshrc_xdg "$user_home/.zshrc"
 }
 

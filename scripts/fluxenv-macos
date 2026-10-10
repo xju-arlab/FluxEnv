@@ -5,6 +5,9 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 # shellcheck source=../lib/core.sh
 source "$ROOT_DIR/lib/core.sh"
+source "$ROOT_DIR/lib/state.sh"
+source "$ROOT_DIR/lib/managed.sh"
+source "$ROOT_DIR/lib/user_tools.sh"
 for module in "$ROOT_DIR"/lib/macos/*.sh; do
     # shellcheck source=/dev/null
     source "$module"
@@ -25,6 +28,12 @@ Options:
   --skip-device-name    跳过设备改名
   --with-vim            安装 Vim / astyle 并配置 Vim
   --without-vim         跳过 Vim
+  --hf-login            安装后运行 hf auth login（浏览器设备码登录）
+  --skip-hf-login       本次不询问 Hugging Face 登录
+  --rename-device      已初始化后仍询问设备改名
+  --status              查看上次完成记录和配置状态，不执行安装
+  --history             查看初始化历史，不执行安装
+  --state-dir <path>    指定历史目录（绝对路径）
   --non-interactive     禁用提示；未指定设备名时保留当前名字
   --dry-run             预览操作，不下载、不写入、不调用 sudo
   --help                显示帮助
@@ -38,6 +47,10 @@ cli_device_name=""
 cli_local_hostname=""
 cli_skip_device_name=0
 cli_vim=""
+cli_hf_login=""
+cli_state_dir=""
+show_state=""
+RENAME_DEVICE=0
 init_colors
 
 require_value() {
@@ -69,6 +82,16 @@ while [ "$#" -gt 0 ]; do
         --skip-device-name) cli_skip_device_name=1; shift ;;
         --with-vim) cli_vim=1; shift ;;
         --without-vim) cli_vim=0; shift ;;
+        --hf-login) cli_hf_login=1; shift ;;
+        --skip-hf-login) cli_hf_login=0; shift ;;
+        --rename-device) RENAME_DEVICE=1; shift ;;
+        --status) show_state=status; shift ;;
+        --history) show_state=history; shift ;;
+        --state-dir)
+            require_value "$@"
+            cli_state_dir="$2"
+            shift 2
+            ;;
         --non-interactive) INTERACTIVE=0; shift ;;
         --dry-run) DRY_RUN=1; INTERACTIVE=0; shift ;;
         --help|-h) usage; exit 0 ;;
@@ -87,6 +110,7 @@ fi
 [ -z "$cli_device_name" ] || DEVICE_NAME="$cli_device_name"
 [ -z "$cli_local_hostname" ] || LOCAL_HOST_NAME="$cli_local_hostname"
 [ -z "$cli_vim" ] || ENABLE_VIM="$cli_vim"
+[ -z "$cli_hf_login" ] || HF_LOGIN="$cli_hf_login"
 if [ "$cli_skip_device_name" -eq 1 ]; then
     DEVICE_NAME=""
     LOCAL_HOST_NAME=""
@@ -98,6 +122,7 @@ TARGET_USER="$(id -un)"
 TARGET_HOME="$HOME"
 MACOS_CONFIG_DIR="${MACOS_CONFIG_DIR:-${XDG_CONFIG_HOME:-$HOME/.config}/fluxenv}"
 MACOS_STATE_DIR="${MACOS_STATE_DIR:-${XDG_STATE_HOME:-$HOME/.local/state}/fluxenv/macos}"
+[ -z "$cli_state_dir" ] || MACOS_STATE_DIR="$cli_state_dir"
 MACOS_ZDOTDIR="${MACOS_ZDOTDIR:-${ZDOTDIR:-$HOME}}"
 MACOS_VIMRC="${MACOS_VIMRC:-$TARGET_HOME/.vimrc}"
 BREW_BIN=""
@@ -105,14 +130,29 @@ BREW_PREFIX=""
 BACKUP_DIR=""
 DEVICE_NAME_BACKUP=""
 VIM_ENABLED=0
-TOTAL_STAGES=8
+UV_BIN=""
+HF_BIN=""
+UV_TOOL_BIN=""
+TOTAL_STAGES=10
 CURRENT_STAGE=0
 
+state_open "$MACOS_STATE_DIR" macos
+if [ -n "$show_state" ]; then
+    state_show "$show_state"
+    exit 0
+fi
 step_macos_preflight
+state_begin
 step_macos_developer_tools
 step_macos_homebrew
 step_macos_packages
+stage "uv 工具 / Hugging Face CLI"
+STATE_CURRENT_RESOURCE=tools/huggingface
+install_huggingface_tool
 step_macos_device_name
 step_macos_shell_env
 step_macos_vim
+stage "Hugging Face 登录"
+STATE_CURRENT_RESOURCE=auth/huggingface
+offer_huggingface_login
 step_macos_finalize

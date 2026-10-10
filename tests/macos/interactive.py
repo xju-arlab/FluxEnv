@@ -17,10 +17,15 @@ questions = [
     ("Bonjour/主机名 [", "bad name\n"),
     ("Bonjour/主机名 [", "interactive-mac\n"),
     ("确认修改以上三个名字？", "y\n" if scenario == "rename" else "n\n"),
+    ("是否现在用浏览器设备码登录 Hugging Face？", "n\n"),
 ]
+extra_args = []
+if scenario in ("auth", "auth_reuse"):
+    questions = [("Authorize in browser [Enter]:", "\n")] if scenario == "auth" else []
+    extra_args = ["--hf-login", "--skip-device-name"]
 master, slave = pty.openpty()
 process = subprocess.Popen(
-    ["/bin/bash", entry, "--config", os.path.join(task_root, "config.env")],
+    ["/bin/bash", entry, "--config", os.path.join(task_root, "config.env"), *extra_args],
     stdin=slave, stdout=slave, stderr=slave,
 )
 os.close(slave)

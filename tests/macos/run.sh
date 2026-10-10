@@ -69,14 +69,52 @@ INSTALLER
                 printf 'export HOMEBREW_PREFIX=%q\n' "$FLUXENV_TEST_ROOT/brew prefix"
                 printf 'export PATH=%q:"$PATH"\n' "$FLUXENV_TEST_ROOT/brew prefix/bin" ;;
             list) cat "$FLUXENV_TEST_ROOT/installed" ;;
-            install)
+            install|reinstall)
                 printf 'brew %s\n' "$*" >> "$FLUXENV_TEST_ROOT/mutations"
                 [ "${FLUXENV_TEST_FAIL_BREW:-0}" -eq 0 ] || exit 1
                 shift
-                printf '%s\n' "$@" >> "$FLUXENV_TEST_ROOT/installed" ;;
+                printf '%s\n' "$@" >> "$FLUXENV_TEST_ROOT/installed"
+                for formula in "$@"; do
+                    case "$formula" in
+                        uv|gh) ln -sf "$FLUXENV_TEST_MOCK_DRIVER" "$FLUXENV_TEST_ROOT/brew prefix/bin/$formula" ;;
+                    esac
+                done ;;
             *) exit 1 ;;
         esac ;;
-    uv) printf 'uv test\n' ;;
+    uv)
+        case "$1" in
+            --version) printf 'uv test\n' ;;
+            tool)
+                case "$2" in
+                    dir) printf '%s\n' "${UV_TOOL_BIN_DIR:-$FLUXENV_TEST_ROOT/tools/bin}" ;;
+                    list) cat "$FLUXENV_TEST_ROOT/uv-installed" 2>/dev/null || true ;;
+                    install|upgrade)
+                        printf 'uv %s\n' "$*" >> "$FLUXENV_TEST_ROOT/mutations"
+                        [ "${FLUXENV_TEST_FAIL_HF:-0}" -eq 0 ] || exit 1
+                        mkdir -p "${UV_TOOL_BIN_DIR:-$FLUXENV_TEST_ROOT/tools/bin}"
+                        ln -sf "$FLUXENV_TEST_MOCK_DRIVER" "${UV_TOOL_BIN_DIR:-$FLUXENV_TEST_ROOT/tools/bin}/hf"
+                        printf 'huggingface-hub v2.2.0\n' > "$FLUXENV_TEST_ROOT/uv-installed"
+                        printf '2.2.0\n' > "$FLUXENV_TEST_ROOT/hf-version" ;;
+                    *) exit 1 ;;
+                esac ;;
+            *) exit 1 ;;
+        esac ;;
+    hf)
+        case "$1" in
+            version) cat "$FLUXENV_TEST_ROOT/hf-version" ;;
+            auth)
+                case "$2" in
+                    whoami) [ -f "$FLUXENV_TEST_ROOT/hf-authenticated" ] ;;
+                    login)
+                        printf 'hf auth login\n' >> "$FLUXENV_TEST_ROOT/mutations"
+                        printf 'Device code: TEST-CODE\nAuthorize in browser [Enter]: '
+                        read -r answer
+                        touch "$FLUXENV_TEST_ROOT/hf-authenticated" ;;
+                    *) exit 1 ;;
+                esac ;;
+            *) exit 1 ;;
+        esac ;;
+    gh) printf 'gh version test\n' ;;
     starship)
         case "$1" in
             --version) printf 'starship test\n' ;;
@@ -100,13 +138,13 @@ run_fluxenv() { /bin/bash "$ROOT_DIR/scripts/fluxenv" --config "$FLUXENV_TEST_RO
 
 new_case() {
     export FLUXENV_TEST_ROOT="$test_root/$1"
-    unset FLUXENV_TEST_OS FLUXENV_TEST_ARCH FLUXENV_TEST_UID FLUXENV_TEST_NO_CLT FLUXENV_TEST_FAIL_NAME_KEY FLUXENV_TEST_FAIL_BREW FLUXENV_TEST_BOOTSTRAP FLUXENV_TEST_INSTALL_HOMEBREW FLUXENV_TEST_DRY_RUN
+    unset FLUXENV_TEST_OS FLUXENV_TEST_ARCH FLUXENV_TEST_UID FLUXENV_TEST_NO_CLT FLUXENV_TEST_FAIL_NAME_KEY FLUXENV_TEST_FAIL_BREW FLUXENV_TEST_FAIL_HF FLUXENV_TEST_BOOTSTRAP FLUXENV_TEST_INSTALL_HOMEBREW FLUXENV_TEST_DRY_RUN
     mkdir -p "$FLUXENV_TEST_ROOT/names" "$FLUXENV_TEST_ROOT/brew prefix/bin" "$FLUXENV_TEST_ROOT/user"
     printf 'Old Mac' > "$FLUXENV_TEST_ROOT/names/ComputerName"
     printf 'old-mac' > "$FLUXENV_TEST_ROOT/names/LocalHostName"
     : > "$FLUXENV_TEST_ROOT/names/HostName"
     : > "$FLUXENV_TEST_ROOT/installed"
-    for tool in uv starship; do
+    for tool in uv starship gh; do
         ln -s "$test_root/mocks/driver" "$FLUXENV_TEST_ROOT/brew prefix/bin/$tool"
     done
     {
@@ -125,7 +163,9 @@ run_homebrew_stage() {
     /bin/bash > "$FLUXENV_TEST_ROOT/output" 2>&1 <<'STAGE'
 set -euo pipefail
 source "$FLUXENV_TEST_REPO/lib/core.sh"
+source "$FLUXENV_TEST_REPO/lib/state.sh"
 source "$FLUXENV_TEST_REPO/lib/macos/packages.sh"
+state_open "$FLUXENV_TEST_ROOT/state" macos
 init_colors
 CURRENT_STAGE=0
 TOTAL_STAGES=1
@@ -146,7 +186,8 @@ printf '# existing profile\nexport EXISTING_PROFILE=ok\n' > "$FLUXENV_TEST_ROOT/
 printf '# existing rc\nexport EXISTING_RC=ok\n' > "$FLUXENV_TEST_ROOT/user/.zshrc"
 printf 'set ignorecase\n' > "$FLUXENV_TEST_ROOT/user/.vimrc"
 run_fluxenv --with-vim --non-interactive || { cat "$FLUXENV_TEST_ROOT/output"; fail install; }
-assert_contains "$FLUXENV_TEST_ROOT/mutations" 'brew install wget jq git autojump universal-ctags uv starship zsh-autosuggestions zsh-syntax-highlighting vim astyle'
+assert_contains "$FLUXENV_TEST_ROOT/mutations" 'brew install wget jq git autojump universal-ctags starship zsh-autosuggestions zsh-syntax-highlighting vim astyle'
+assert_contains "$FLUXENV_TEST_ROOT/mutations" 'uv tool install huggingface_hub>=1.20'
 ! grep -q sudo "$FLUXENV_TEST_ROOT/mutations" || fail 'non-interactive run renamed device'
 assert_contains "$FLUXENV_TEST_ROOT/user/.zshrc" EXISTING_RC
 assert_contains "$FLUXENV_TEST_ROOT/user/.zprofile" EXISTING_PROFILE
@@ -162,12 +203,84 @@ cp "$FLUXENV_TEST_ROOT/user/.zprofile" "$FLUXENV_TEST_ROOT/profile-first"
 cp "$FLUXENV_TEST_ROOT/user/.zshrc" "$FLUXENV_TEST_ROOT/rc-first"
 cp "$FLUXENV_TEST_ROOT/user/.vimrc" "$FLUXENV_TEST_ROOT/vim-first"
 cp "$FLUXENV_TEST_ROOT/mutations" "$FLUXENV_TEST_ROOT/mutations-first"
+snapshot_metadata() {
+    python3 - "$FLUXENV_TEST_ROOT" <<'PY'
+import os, sys
+root = sys.argv[1]
+for folder in ('user', 'config dir'):
+    for base, _, files in os.walk(os.path.join(root, folder)):
+        for name in sorted(files):
+            if name == '.zcompdump':
+                continue
+            path = os.path.join(base, name)
+            stat = os.stat(path)
+            print(os.path.relpath(path, root), stat.st_ino, stat.st_mtime_ns)
+PY
+}
+snapshot_metadata > "$FLUXENV_TEST_ROOT/metadata-first"
 run_fluxenv --with-vim --non-interactive || fail 'repeat install'
 cmp "$FLUXENV_TEST_ROOT/profile-first" "$FLUXENV_TEST_ROOT/user/.zprofile" || fail 'profile not idempotent'
 cmp "$FLUXENV_TEST_ROOT/rc-first" "$FLUXENV_TEST_ROOT/user/.zshrc" || fail 'rc not idempotent'
 cmp "$FLUXENV_TEST_ROOT/vim-first" "$FLUXENV_TEST_ROOT/user/.vimrc" || fail 'vimrc not idempotent'
 cmp "$FLUXENV_TEST_ROOT/mutations-first" "$FLUXENV_TEST_ROOT/mutations" || fail 'repeat install modified packages'
+snapshot_metadata > "$FLUXENV_TEST_ROOT/metadata-second"
+cmp "$FLUXENV_TEST_ROOT/metadata-first" "$FLUXENV_TEST_ROOT/metadata-second" || fail 'repeat rewrote identical config'
+[ "$(awk -F '\t' '$4 == "completed" {n++} END {print n+0}' "$FLUXENV_TEST_ROOT/state/history.tsv")" = 2 ] || fail 'missing completion history'
+[ -f "$FLUXENV_TEST_ROOT/state/initialized" ] && [ ! -d "$FLUXENV_TEST_ROOT/state/lock" ] || fail 'completion marker/lock'
+assert_contains "$FLUXENV_TEST_ROOT/output" '当前设备已完成过初始化'
 printf 'PASS: complete install, shell/Vim startup, preservation and repeat run\n'
+
+printf '\n# local customization\n' >> "$FLUXENV_TEST_ROOT/config dir/macos.zsh"
+cp "$FLUXENV_TEST_ROOT/config dir/macos.zsh" "$FLUXENV_TEST_ROOT/custom-first"
+rm "$FLUXENV_TEST_ROOT/tools/bin/hf" "$FLUXENV_TEST_ROOT/config dir/starship-macos.toml"
+: > "$FLUXENV_TEST_ROOT/mutations"
+run_fluxenv --with-vim --non-interactive || fail 'incremental repair'
+cmp "$FLUXENV_TEST_ROOT/custom-first" "$FLUXENV_TEST_ROOT/config dir/macos.zsh" || fail 'local generated-file edit overwritten'
+[ -f "$FLUXENV_TEST_ROOT/config dir/starship-macos.toml" ] && [ -x "$FLUXENV_TEST_ROOT/tools/bin/hf" ] || fail 'missing resource not repaired'
+assert_contains "$FLUXENV_TEST_ROOT/mutations" 'uv tool install --reinstall --upgrade huggingface_hub>=1.20'
+! grep -Eq '^(brew|sudo)' "$FLUXENV_TEST_ROOT/mutations" || fail 'incremental repair reinstalled/renamed'
+run_fluxenv --history || fail 'history command'
+assert_contains "$FLUXENV_TEST_ROOT/output" preserved
+run_fluxenv --status || fail 'status command'
+assert_contains "$FLUXENV_TEST_ROOT/output" 'schema=1'
+printf 'PASS: missing hf/config repaired, local changes preserved and history/status readable\n'
+
+printf 'uv\ngh\n' >> "$FLUXENV_TEST_ROOT/installed"
+rm "$FLUXENV_TEST_ROOT/brew prefix/bin/uv" "$FLUXENV_TEST_ROOT/brew prefix/bin/gh"
+: > "$FLUXENV_TEST_ROOT/mutations"
+run_fluxenv --non-interactive || fail 'missing core executable repair'
+assert_contains "$FLUXENV_TEST_ROOT/mutations" 'brew reinstall uv gh'
+[ -x "$FLUXENV_TEST_ROOT/brew prefix/bin/uv" ] && [ -x "$FLUXENV_TEST_ROOT/brew prefix/bin/gh" ] || fail 'core executable not restored'
+printf 'PASS: Homebrew receipts with missing uv/gh executables trigger targeted repair\n'
+
+new_case old_hf
+mkdir -p "$FLUXENV_TEST_ROOT/tools/bin"
+ln -s "$FLUXENV_TEST_MOCK_DRIVER" "$FLUXENV_TEST_ROOT/tools/bin/hf"
+printf '1.19.0\n' > "$FLUXENV_TEST_ROOT/hf-version"
+printf 'hf v1.19.0\n' > "$FLUXENV_TEST_ROOT/uv-installed"
+run_fluxenv --non-interactive || fail 'old hf upgrade'
+assert_contains "$FLUXENV_TEST_ROOT/mutations" 'uv tool upgrade --reinstall hf'
+printf 'PASS: older hf upgraded only when device-code support is missing\n'
+
+new_case hf_failure
+export FLUXENV_TEST_FAIL_HF=1
+if run_fluxenv --non-interactive; then fail 'hf install failure accepted'; fi
+[ ! -f "$FLUXENV_TEST_ROOT/state/initialized" ] && [ ! -d "$FLUXENV_TEST_ROOT/state/lock" ] || fail 'failed run marked complete or kept lock'
+assert_contains "$FLUXENV_TEST_ROOT/state/history.tsv" failed
+cp "$FLUXENV_TEST_ROOT/mutations" "$FLUXENV_TEST_ROOT/failed-mutations"
+unset FLUXENV_TEST_FAIL_HF
+run_fluxenv --non-interactive || fail 'resume after hf failure'
+[ "$(grep -c '^brew install' "$FLUXENV_TEST_ROOT/mutations")" = 1 ] || fail 'resume reinstalled successful packages'
+[ -f "$FLUXENV_TEST_ROOT/state/initialized" ] || fail 'resumed run not complete'
+printf 'PASS: failure records history and retry reuses completed package installation\n'
+
+new_case hf_auth
+python3 "$ROOT_DIR/tests/macos/interactive.py" "$ROOT_DIR/scripts/fluxenv" auth || fail 'hf device authorization'
+[ -f "$FLUXENV_TEST_ROOT/hf-authenticated" ] || fail 'authentication not completed'
+! grep -q TEST-CODE "$FLUXENV_TEST_ROOT/state/history.tsv" || fail 'device code leaked to history'
+python3 "$ROOT_DIR/tests/macos/interactive.py" "$ROOT_DIR/scripts/fluxenv" auth_reuse || fail 'hf auth reuse'
+[ "$(grep -c '^hf auth login' "$FLUXENV_TEST_ROOT/mutations")" = 1 ] || fail 'authenticated run prompted login again'
+printf 'PASS: browser/device authorization and existing login reuse, with no code in history\n'
 
 new_case dry_run
 run_fluxenv --dry-run --with-vim --device-name '我的 MacBook' --local-hostname my-macbook || fail 'dry run'

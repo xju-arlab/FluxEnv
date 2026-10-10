@@ -10,6 +10,9 @@ fi
 
 source "$ROOT_DIR/lib/core.sh"
 source "$ROOT_DIR/lib/config.sh"
+source "$ROOT_DIR/lib/state.sh"
+source "$ROOT_DIR/lib/managed.sh"
+source "$ROOT_DIR/lib/user_tools.sh"
 
 for module in "$ROOT_DIR"/lib/steps/*.sh; do
     # shellcheck source=/dev/null
@@ -28,6 +31,11 @@ Options:
   --non-interactive      Disable prompts; require config values up front
   --dry-run              Print planned mutations without executing them
   --no-apt-mirror        Do not replace apt sources with the configured mirror
+  --hf-login            Offer Hugging Face browser/device-code login
+  --skip-hf-login       Skip the optional Hugging Face login
+  --status              Show saved initialization status without installing
+  --history             Show initialization history without installing
+  --state-dir <path>    Override the history root (absolute path)
   --help                 Show this help
 EOF
 }
@@ -37,14 +45,23 @@ CONFIG_FILE=""
 INTERACTIVE=1
 DRY_RUN=0
 NO_APT_MIRROR=0
+cli_hf_login=""
+cli_state_dir=""
+show_state=""
+
+require_value() {
+    [ "$#" -ge 2 ] && [ -n "$2" ] && [[ "$2" != -* ]] || die "$1 需要参数值"
+}
 
 while [ $# -gt 0 ]; do
     case "$1" in
         --profile)
+            require_value "$@"
             PROFILE="${2:-}"
             shift 2
             ;;
         --config)
+            require_value "$@"
             CONFIG_FILE="${2:-}"
             shift 2
             ;;
@@ -60,6 +77,15 @@ while [ $# -gt 0 ]; do
         --no-apt-mirror)
             NO_APT_MIRROR=1
             shift
+            ;;
+        --hf-login) cli_hf_login=1; shift ;;
+        --skip-hf-login) cli_hf_login=0; shift ;;
+        --status) show_state=status; shift ;;
+        --history) show_state=history; shift ;;
+        --state-dir)
+            require_value "$@"
+            cli_state_dir="$2"
+            shift 2
             ;;
         --help|-h)
             usage
@@ -87,10 +113,26 @@ if [ "$NO_APT_MIRROR" -eq 1 ]; then
 fi
 
 finalize_config
+[ -z "$cli_hf_login" ] || HF_LOGIN="$cli_hf_login"
+[ -z "$cli_state_dir" ] || FLUXENV_STATE_DIR="$cli_state_dir"
+state_open "$FLUXENV_STATE_DIR" "$PROFILE_NAME"
+if [ -n "$show_state" ]; then
+    state_show "$show_state"
+    exit 0
+fi
+[ -t 0 ] || INTERACTIVE=0
+validate_user_tools_config
+UV_BIN=""
+HF_BIN=""
+UV_TOOL_BIN=""
 
 TOTAL_STAGES="$(word_count "$PROFILE_STEPS")"
 CURRENT_STAGE=0
 
 for step_name in $PROFILE_STEPS; do
+    STATE_CURRENT_RESOURCE="stage/$step_name"
     "step_${step_name}"
+    if [ "$step_name" = preflight ]; then
+        state_begin
+    fi
 done
