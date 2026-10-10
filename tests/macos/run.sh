@@ -249,6 +249,7 @@ assert_contains "$FLUXENV_TEST_ROOT/config dir/macos.zsh" 'ZSH_HIGHLIGHT_STYLES[
 env ZDOTDIR="$FLUXENV_TEST_ROOT/user" HISTFILE="$FLUXENV_TEST_ROOT/history" \
     /bin/zsh -fic 'source "$FLUXENV_TEST_ROOT/user/.zshrc"; [[ $FLUXENV_MACOS_LOADED == 1 && $PROMPT == "fluxenv-test> " && $(command -v node) == "$FLUXENV_TEST_ROOT/nvm/versions/node/v24.0.0/bin/node" ]] && command -v gc >/dev/null' \
     > "$FLUXENV_TEST_ROOT/zsh-output" 2>&1 || { cat "$FLUXENV_TEST_ROOT/zsh-output"; fail 'zsh startup'; }
+! grep -q 'no such file' "$FLUXENV_TEST_ROOT/zsh-output" || fail 'Homebrew shellenv command failed'
 /usr/bin/vim -Nu "$FLUXENV_TEST_ROOT/user/.vimrc" -n -i NONE -es \
     '+if &tabstop != 4 || &clipboard !=# "unnamed" | cquit | endif' +qall || fail 'vim config'
 ! grep -Ei '(http_proxy|all_proxy|netui|/run/user|apt |useradd|LS_COLORS=)' "$FLUXENV_TEST_ROOT/config dir/macos.zsh" || fail 'Linux/proxy config leaked'

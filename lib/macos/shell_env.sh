@@ -18,7 +18,7 @@ typeset -g _fluxenv_prefix=$quoted_prefix
 typeset -g _fluxenv_config=$quoted_config
 
 if [[ \${HOMEBREW_PREFIX:-} != \$_fluxenv_prefix && -x \$_fluxenv_brew ]]; then
-    eval "\$(\"\$_fluxenv_brew\" shellenv)"
+    eval "\$(\$_fluxenv_brew shellenv)"
 fi
 typeset -U path fpath
 path=("\$_fluxenv_prefix/bin" "\$_fluxenv_prefix/sbin" \$path)
