@@ -1,0 +1,65 @@
+# FluxEnv bare-metal prompt, shared appearance with the Linux host profile.
+[username]
+style_user = "yellow bold"
+style_root = "red bold"
+format = "[$user]($style)"
+show_always = true
+
+[hostname]
+ssh_only = false
+format = "@[$hostname]($style) "
+trim_at = "."
+style = "cyan"
+
+[python]
+disabled = false
+symbol = " "
+
+[java]
+symbol = " "
+style = "yellow"
+
+[nodejs]
+disabled = true
+
+[golang]
+disabled = true
+
+[directory]
+style = "yellow"
+truncation_length = 4
+truncation_symbol = "…/"
+format = "[$path]($style)[$read_only]($read_only_style) "
+
+[git_branch]
+symbol = ""
+style = "purple bold"
+format = "[$symbol$branch]($style)"
+
+[git_status]
+disabled = false
+format = ' ([$all_status$ahead_behind]($style) )'
+style = "red bold"
+staged = "[+](green) "
+modified = "[!](red) "
+untracked = "[?](yellow) "
+deleted = "[✘](red) "
+renamed = "[»](yellow) "
+conflicted = "[=](red bold) "
+stashed = "[$](cyan) "
+ahead = "⇡"
+behind = "⇣"
+diverged = "⇕"
+up_to_date = ""
+
+[conda]
+disabled = false
+ignore_base = false
+style = "#78E08F bold"
+symbol = ""
+format = '[\($symbol$environment\)]($style) '
+
+[character]
+success_symbol = "[❯](white bold)"
+error_symbol = "[❯](red bold)"
+vimcmd_symbol = "[❮](green bold)"

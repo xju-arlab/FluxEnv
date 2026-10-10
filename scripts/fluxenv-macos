@@ -1,0 +1,118 @@
+#!/bin/bash
+
+set -euo pipefail
+
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+# shellcheck source=../lib/core.sh
+source "$ROOT_DIR/lib/core.sh"
+for module in "$ROOT_DIR"/lib/macos/*.sh; do
+    # shellcheck source=/dev/null
+    source "$module"
+done
+
+usage() {
+    cat <<'EOF'
+Usage: scripts/fluxenv [macOS options]
+       scripts/fluxenv-macos [options]
+
+请以当前普通用户运行，不要在整条命令前加 sudo。
+
+Options:
+  --profile macos       macOS profile（Mac 上默认使用）
+  --config <path>       加载 Bash .env 配置，参考 config/example-macos.env
+  --device-name <name>  指定设备显示名；交互运行时仍会确认
+  --local-hostname <n>  指定 Bonjour/主机名（字母、数字、连字符，最多 63 字符）
+  --skip-device-name    跳过设备改名
+  --with-vim            安装 Vim / astyle 并配置 Vim
+  --without-vim         跳过 Vim
+  --non-interactive     禁用提示；未指定设备名时保留当前名字
+  --dry-run             预览操作，不下载、不写入、不调用 sudo
+  --help                显示帮助
+EOF
+}
+
+INTERACTIVE=1
+DRY_RUN=0
+CONFIG_FILE=""
+cli_device_name=""
+cli_local_hostname=""
+cli_skip_device_name=0
+cli_vim=""
+init_colors
+
+require_value() {
+    [ "$#" -ge 2 ] && [ -n "$2" ] && [[ "$2" != -* ]] || die "$1 需要一个参数值"
+}
+
+while [ "$#" -gt 0 ]; do
+    case "$1" in
+        --profile)
+            require_value "$@"
+            [ "$2" = "macos" ] || die "Mac 上请使用 --profile macos，或省略 --profile"
+            shift 2
+            ;;
+        --config)
+            require_value "$@"
+            CONFIG_FILE="$2"
+            shift 2
+            ;;
+        --device-name)
+            require_value "$@"
+            cli_device_name="$2"
+            shift 2
+            ;;
+        --local-hostname)
+            require_value "$@"
+            cli_local_hostname="$2"
+            shift 2
+            ;;
+        --skip-device-name) cli_skip_device_name=1; shift ;;
+        --with-vim) cli_vim=1; shift ;;
+        --without-vim) cli_vim=0; shift ;;
+        --non-interactive) INTERACTIVE=0; shift ;;
+        --dry-run) DRY_RUN=1; INTERACTIVE=0; shift ;;
+        --help|-h) usage; exit 0 ;;
+        *) die "未知参数: $1（使用 --help 查看 macOS 选项）" ;;
+    esac
+done
+
+# This profile contains only macOS settings, independent of the Linux stages.
+# shellcheck source=../config/profile-macos.env
+source "$ROOT_DIR/config/profile-macos.env"
+if [ -n "$CONFIG_FILE" ]; then
+    [ -f "$CONFIG_FILE" ] || die "配置文件不存在: $CONFIG_FILE"
+    # shellcheck source=/dev/null
+    source "$CONFIG_FILE"
+fi
+[ -z "$cli_device_name" ] || DEVICE_NAME="$cli_device_name"
+[ -z "$cli_local_hostname" ] || LOCAL_HOST_NAME="$cli_local_hostname"
+[ -z "$cli_vim" ] || ENABLE_VIM="$cli_vim"
+if [ "$cli_skip_device_name" -eq 1 ]; then
+    DEVICE_NAME=""
+    LOCAL_HOST_NAME=""
+    SKIP_DEVICE_NAME=1
+fi
+[ -t 0 ] || INTERACTIVE=0
+
+TARGET_USER="$(id -un)"
+TARGET_HOME="$HOME"
+MACOS_CONFIG_DIR="${MACOS_CONFIG_DIR:-${XDG_CONFIG_HOME:-$HOME/.config}/fluxenv}"
+MACOS_STATE_DIR="${MACOS_STATE_DIR:-${XDG_STATE_HOME:-$HOME/.local/state}/fluxenv/macos}"
+MACOS_ZDOTDIR="${MACOS_ZDOTDIR:-${ZDOTDIR:-$HOME}}"
+MACOS_VIMRC="${MACOS_VIMRC:-$TARGET_HOME/.vimrc}"
+BREW_BIN=""
+BREW_PREFIX=""
+BACKUP_DIR=""
+DEVICE_NAME_BACKUP=""
+VIM_ENABLED=0
+TOTAL_STAGES=8
+CURRENT_STAGE=0
+
+step_macos_preflight
+step_macos_developer_tools
+step_macos_homebrew
+step_macos_packages
+step_macos_device_name
+step_macos_shell_env
+step_macos_vim
+step_macos_finalize

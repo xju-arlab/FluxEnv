@@ -1,10 +1,10 @@
 # FluxEnv
 
 ![Shell](https://img.shields.io/badge/Shell-Bash-4EAA25?logo=gnubash&logoColor=white)
-![Platform](https://img.shields.io/badge/Platform-Ubuntu%20%7C%20Debian%20%7C%20WSL-blue)
+![Platform](https://img.shields.io/badge/Platform-macOS%20%7C%20Ubuntu%20%7C%20Debian%20%7C%20WSL-blue)
 ![Mode](https://img.shields.io/badge/Mode-Offline--first-brightgreen)
 
-FluxEnv 是一个基于 Bash 的环境初始化工具，面向 WSL、Ubuntu / Debian 宿主机、AutoDL 容器用户环境，以及 root-only 容器环境。
+FluxEnv 是一个基于 Bash 的环境初始化工具，面向 macOS、WSL、Ubuntu / Debian 宿主机、AutoDL 容器用户环境，以及 root-only 容器环境。macOS 使用 Homebrew 安装工具，支持交互修改设备名，不配置代理、不换源、不创建用户。
 
 ## NetUI 代理配置
 
@@ -101,7 +101,8 @@ NETUI_DNS_FIX
 
 ## 入口脚本
 
-- `scripts/fluxenv`：统一初始化入口
+- `scripts/fluxenv`：统一初始化入口，macOS 自动进入 Mac 流程
+- `scripts/fluxenv-macos`：macOS 独立入口（详见 [`docs/MACOS_FLUXENV.md`](docs/MACOS_FLUXENV.md)）
 - `scripts/fetch_resources.sh`：离线资源抓取入口
 - `scripts/add_claude_user.sh`：让多个 Linux 用户共用同一个 Claude Code 登录（详见 `docs/CLAUDE_SHARED_LOGIN.md`）
 - `scripts/add_ssh_key.sh`：给用户加 SSH 公钥登录并打印客户端 ssh config（配合上面的共享用户，详见同文档）
@@ -125,13 +126,28 @@ NETUI_DNS_FIX
 cd /path/to/FluxEnv
 ```
 
-如需先准备离线资源：
+Linux 如需先准备离线资源：
 
 ```bash
 ./scripts/fetch_resources.sh
 ```
 
-默认 profile 为 `normal`。如果不传 `--profile`，脚本会按非 WSL 宿主机模式执行。
+macOS 默认使用 `macos` 流程；Linux 默认 profile 为 `normal`，按非 WSL 宿主机模式执行。
+
+### macOS（Apple Silicon / Intel）
+
+以当前用户运行，**不要在命令前加 `sudo`**：
+
+```bash
+bash scripts/fluxenv --dry-run   # 先预览，不修改设备
+bash scripts/fluxenv            # 安装工具，交互询问设备改名和 Vim
+```
+
+也可以显式运行 `bash scripts/fluxenv-macos`，或使用 `--profile macos`。保留 Git、wget、jq、autojump、uv、Starship、zsh 自动建议和语法高亮等工具；使用 macOS 自带 zsh/curl/unzip 和 Apple 编译工具，可选安装 Vim/astyle。
+
+Homebrew 未安装时使用官方安装器；Apple 命令行开发工具缺失时打开系统安装窗口，完成后重新执行脚本。只有 Homebrew 首次安装和设备改名等需要管理员权限的步骤会请求授权。现有 `.zshrc` / `.zprofile` / `.vimrc` 先备份，通过托管块保留原有内容。
+
+完整选项、配置文件和验证说明见 [`docs/MACOS_FLUXENV.md`](docs/MACOS_FLUXENV.md)。
 
 ### 1. `standard` WSL 模式
 
