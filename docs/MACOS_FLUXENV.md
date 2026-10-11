@@ -119,6 +119,8 @@ bash scripts/fluxenv --dry-run --with-vim --device-name "工作 Mac" --local-hos
 
 `--with-nvim` 克隆 Config-NeoVim 到 `~/.config/nvim`，按锁文件初始化 LazyVim 插件，并安装配置所需的 Mason 语言工具和 Tree-sitter 解析器。已有同源仓库及本地改动会复用，其他配置或符号链接会保留。重跑检查安装记录和资源是否存在；配置变化或资源缺失时重新补齐。Java 支持通过 `JAVA21_HOME` 使用 Homebrew Java 21，不改变其他工具的 `JAVA_HOME`。
 
+外观配置独立放在 `lua/plugins/zz_fluxenv_ui.lua`：保留 LazyVim 原生的 TokyoNight 主题、首页、侧栏、图标和状态栏，提高文字对比度。Apple Terminal 自动使用 256 色，其他终端保留真彩色；无需修改终端色板。此文件支持增量更新，本地修改会保留。
+
 `--with-docker` 提供 `docker`、`docker compose` 和 `docker buildx`。可连接的现有引擎直接复用；默认 context 没有引擎时安装并启动 Colima。显式指定或其他 context 不可连接时会提示检查原引擎，避免覆盖用户选择。Colima 通过 `colima start` / `colima stop` 管理，FluxEnv 不配置开机自启。插件通过独立链接注册，不改写 Docker 登录凭据。
 
 `--with-mactex` 使用官方完整 MacTeX，检测 `pdflatex`、`xelatex` 和 `latexmk` 后复用。安装包由 Homebrew 下载、校验并缓存；非交互运行且没有管理员授权时仅下载，显示待安装状态和 `brew install --cask mactex` 命令。管理员安装完成后执行 `source ~/.zshrc`，TeX 路径会自动生效。

@@ -76,6 +76,7 @@ for tool in git sudo; do ln -s driver "$test_root/mocks/$tool"; done
 export PATH="$test_root/mocks:/usr/bin:/bin:/usr/sbin:/sbin"
 source "$ROOT_DIR/lib/core.sh"
 source "$ROOT_DIR/lib/state.sh"
+source "$ROOT_DIR/lib/managed.sh"
 source "$ROOT_DIR/lib/macos/optional_tools.sh"
 source "$ROOT_DIR/lib/macos/neovim.sh"
 source "$ROOT_DIR/lib/macos/docker.sh"
@@ -120,6 +121,12 @@ step_macos_neovim > "$test_root/output" 2>&1 || { cat "$test_root/output"; fail 
 cp "$FLUXENV_DEV_CASE/mutations" "$test_root/first"
 step_macos_neovim > "$test_root/output" 2>&1
 cmp "$test_root/first" "$FLUXENV_DEV_CASE/mutations" || fail 'NeoVim repeat mutated installation'
+appearance_path="$MACOS_NVIM_CONFIG_DIR/lua/plugins/zz_fluxenv_ui.lua"
+cmp "$ROOT_DIR/config/nvim-fluxenv-ui.lua" "$appearance_path" || fail 'NeoVim appearance missing'
+rm "$appearance_path"
+step_macos_neovim > "$test_root/output" 2>&1
+cmp "$ROOT_DIR/config/nvim-fluxenv-ui.lua" "$appearance_path" || fail 'missing appearance not repaired'
+cmp "$test_root/first" "$FLUXENV_DEV_CASE/mutations" || fail 'appearance repair reinstalled tools'
 rm "$FLUXENV_DEV_CASE/plugin"
 step_macos_neovim > "$test_root/output" 2>&1
 [ "$(grep -c 'nvim bootstrap' "$FLUXENV_DEV_CASE/mutations")" -eq 2 ] || fail 'missing plugin not repaired'
@@ -127,7 +134,11 @@ step_macos_neovim > "$test_root/output" 2>&1
 printf -- '-- local edit\n' >> "$MACOS_NVIM_CONFIG_DIR/init.lua"
 step_macos_neovim > "$test_root/output" 2>&1
 grep -q 'local edit' "$MACOS_NVIM_CONFIG_DIR/init.lua" || fail 'NeoVim local edit lost'
-printf 'PASS: NeoVim reuse, missing plugin recovery and local edits\n'
+printf -- '-- personal appearance\n' >> "$appearance_path"
+cp "$appearance_path" "$test_root/personal-appearance"
+step_macos_neovim > "$test_root/output" 2>&1
+cmp "$test_root/personal-appearance" "$appearance_path" || fail 'personal appearance overwritten'
+printf 'PASS: NeoVim reuse, missing plugin/appearance recovery and local edits\n'
 
 new_case custom_config
 mkdir -p "$MACOS_NVIM_CONFIG_DIR"

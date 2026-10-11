@@ -61,6 +61,15 @@ macos_neovim_checkout() {
     state_record "$resource" applied
 }
 
+macos_neovim_appearance() {
+    local path="$MACOS_NVIM_CONFIG_DIR/lua/plugins/zz_fluxenv_ui.lua"
+    if [ "$DRY_RUN" -eq 1 ]; then
+        progress "[dry-run] 添加 NeoVim 外观和 Apple Terminal 256 色适配"
+        return 0
+    fi
+    managed_install_file "$path" "$ROOT_DIR/config/nvim-fluxenv-ui.lua"
+}
+
 macos_neovim_run() {
     local mode="$1"
     env XDG_CONFIG_HOME="$(dirname "$MACOS_NVIM_CONFIG_DIR")" NVIM_APPNAME=nvim \
@@ -107,6 +116,7 @@ step_macos_neovim() {
     macos_validate_neovim_config
     macos_neovim_packages
     macos_neovim_checkout || return 0
+    macos_neovim_appearance
     if [ "$DRY_RUN" -eq 1 ]; then
         progress "[dry-run] 按 lazy-lock.json 安装插件、语言服务和语法解析器；已安装项复用"
         return 0
