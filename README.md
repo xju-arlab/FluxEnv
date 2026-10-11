@@ -156,7 +156,7 @@ source ~/.zshrc                 # 完成后刷新当前终端
 
 #### Starship 最终效果与 Terminal 手动配色
 
-最终颜色需要在 **Terminal → 设置 → 描述文件（Profiles）→ Pro → 文本（Text）→ ANSI Colors** 手动调整：Normal 黄色格设为橙色，Bright 黄色格设为亮黄色，紫色用于 Git 分支。Starship 使用这些 ANSI 色位，用户名为亮黄色、路径为橙色、主机名为青色，分支不显示 `on` 前缀。
+最终颜色需要在 **Terminal → 设置 → 描述文件（Profiles）→ Pro → 文本（Text）→ ANSI Colors** 手动调整：Normal 黄色格设为橙色，Bright 黄色格设为亮黄色，紫色用于 Git 分支。Starship 使用这些 ANSI 色位，用户名为亮黄色、路径为橙色、主机名为青色，分支不显示 `on` 前缀。输入命令时，命令名保留高亮，参数和路径使用默认白色。
 
 ![Terminal Pro 的 ANSI 色板，Normal 黄色格调整为橙色](docs/images/macos-terminal-ansi-colors.png)
 
